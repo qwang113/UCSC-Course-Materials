@@ -1,0 +1,440 @@
+---
+title: "STATS_204_HW2"
+author: "Qi Wang"
+output:
+  pdf_document: 
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+\noindent 
+
+Question 1:  
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+```
+
+(a) 
+
+```{r}
+data.food <- scan(text = "Wendys McDonalds Subway Subway Subway Wendys
+Wendys Subway Wendys Subway Subway Subway
+Subway Subway Subway", what = "character")
+```
+(b)
+
+```{r}
+table(data.food)
+```
+
+
+(c) 
+
+```{r}
+food.table <- table(data.food)/length(data.food)
+```
+
+(d)
+
+```{r}
+par(mfrow = c(1,3))
+mosaicplot(food.table, color = c("lightpink", "lightblue", "lightgrey"),
+las = 1, main = "Mosaic Plot of Students", xlab = "")
+barplot(food.table, col = c("lightpink", "lightblue", "lightgrey"), main = "Barplot of Students")
+pie(food.table, col = c("lightpink", "lightblue", "lightgrey"), radius = 1,
+main = "Piechart of Students")
+```
+
+Question 2: 
+```{r}
+a <- 0:4 
+P <- dbinom(a, size = 4, prob = 0.312) 
+P <- c(P[1:3], P[4] + P[5])
+k <- dbinom(a, size = 4, prob = 0.312) * 70
+k <- c(k[1:3], k[4] + k[5])
+chisq.test(c(17, 31, 17, 5), p = P)
+```
+From the result above, we cannot reject the null hypothesis that the data follows a Binomial distribution with size equals 70 and probability of success is 0.312.
+
+```{r}
+a <- 0:5 
+P <- dbinom(a, size = 5, prob = 0.312) 
+P <- c(P[1:3], P[4] + P[5] + P[6])
+k <- dbinom(a, size = 4, prob = 0.312) * 25
+k <- c(k[1:3], k[4] + k[5] + k[6])
+chisq.test(c(5, 5, 4, 11), p = P)
+```
+From the chi-square test result above, we can reject the null hypothesis, which means that the data is not following the binomial distribution with size 25 and probability 0.312.
+
+Question 3:  
+
+(a)
+
+```{r}
+data.twins <- read.table("D:/77/UCSC/study/204/HW/twins.txt", header=TRUE, sep=",",na.strings=".")
+data.twins <- na.omit(data.twins)
+cate_age <- cut(data.twins$AGE, c(0,30,40,50,100), labels = c("Younger than 30",
+"30 - 40", "40 - 50", "Older than 50") )
+print(cate_age)
+```
+
+(b)
+
+```{r}
+table(cate_age)
+```
+
+(c)
+
+```{r}
+p_table <- table(cate_age)/length(data.twins$AGE)
+mosaicplot(p_table, color = c("lightblue","lightpink","lightgreen", "lightyellow"),
+main = "Mosaicplot of Age Proportion", xlab = "")
+```
+
+Question 4:  
+
+(a)
+
+```{r}
+cate_salary <- cut(data.twins$HRWAGEL, breaks = c(0, 7, 13, 20, 150), labels = c(
+"Less than 7", "7 - 13", "13 - 20","20 - 150") )
+print(cate_salary)
+table(cate_salary)
+```
+
+(b)
+
+
+```{r}
+table(cate_age, cate_salary)
+```
+
+
+(c)
+
+
+```{r}
+age_salary <- prop.table(table(cate_age, cate_salary))
+print(age_salary)
+```
+
+(d)  
+
+```{r}
+mosaicplot(age_salary, color = c("lightblue", "lightpink", "lightgreen", "lightyellow"),
+xlab = "Salary Level", ylab = "Age Level", main = "")
+```  
+
+
+(e) Young people are less possible to have an extremely high salary. For those people who has extremely high salary, most of them are people older than 40 years old but younger than 50 years old.
+
+Question 5:  
+
+(a)  
+
+```{r}
+chisq.test(table(cate_age, cate_salary))
+```
+
+From the P-value above, we can see that the null hypothesis is rejected, and the colums are not independent from rows.
+
+
+(b)  
+
+```{r}
+X <- table(cate_age, cate_salary)
+A <- matrix(rep(rowSums(X),4),4,4, byrow = T)
+B <- matrix(rep(colSums(X),4),4,4)
+tot <- sum(X)
+Expected <- t(A*B/tot)
+Pearson <- (X-Expected)/sqrt(Expected)
+print(Pearson)
+```  
+So, the people younger than 30 with salary less than 7 or more than 20 and the people with age between 40-50 with salary 20-150 has Pearson’s residual absolutely larger than 2.
+
+
+(c)
+
+```{r}
+mosaicplot(table(cate_age, cate_salary), shade = TRUE, main = "",
+xlab = "Age Level", ylab = "Salary Level")
+```  
+
+If the columns and rows are independent, it should satisfy the following equation:
+$$ P(X=x,\ Y=y)=P(X=x)\times P(Y=y) $$
+
+
+And the frequency of each group should also follows that distribution. However, after comparing the expected value and the true value, We find the people who is younger than 30 has a extremely higher frequency to get salary less than 7 and extremely lower frequency to get a high salary. Furthermore, the frequency observed is extremely higher than expected for people from 40-50 to get a salary 20-150.
+
+
+Question 6:
+
+(a)
+
+```{r}
+pidigits =
+read.table("http://www.itl.nist.gov/div898/strd/univ/data/PiDigits.dat",
+skip=60)
+table(pidigits)
+```
+
+(b)
+
+```{r}
+barplot(table(pidigits), col = c(1:8, "lightblue", "lightpink"),
+xlab = "Digit", ylab = "Frequency")
+```
+
+
+(c)
+
+
+```{r}
+chisq.test(table(pidigits))
+```
+
+From the chi-squared test above, we cannot reject the null hypothesis that the digits are randomly distributed from 0 to 9.
+
+
+Question 7:  
+
+(a)
+
+
+```{r}
+college <- read.csv("D:/77/UCSC/study/204/HW/college.csv", header = T)
+college <- na.omit(college)
+attach(college)
+plot(Pct.20, Pct.50, pch = 19, xlab = "Percent of Small Class",
+ylab = "Percent of Large Class")
+```
+(b)
+
+```{r}
+plot(Pct.20, Pct.50, pch = 19, xlab = "Percent of Small Class",
+ylab = "Percent of Large Class")
+lines(lowess(Pct.20, Pct.50), lwd = 2, col = "red")
+```
+
+(c)
+  
+  
+From the red line above we can see the percent of large class in this school is around 9%.
+
+(d)
+
+```{r}
+par(mfrow = c(1, 2))
+fit <- line(x = Pct.20, y = Pct.50)
+plot(Pct.20, fit$residuals, pch = 19, xlab = "Percentage of Small Class",
+ylab = "Residuals")
+abline(h = 0, lwd = 3, col = "red")
+
+
+plot(Pct.50, fit$residuals, pch = 19, xlab = "Percentage of Large Class",
+ylab = "Residuals")
+abline(h = 0, lwd = 3, col = "red")
+
+```
+
+I think as the percentage of large classes increase, the residuals seem to have a increasing trend. However, for the residual plot between small classes and residuals, it seems the variance of residuals are becoming smaller as the percentage of small classes increases.
+
+
+
+(e)  
+
+As the percentage of small classes increases, the residuals seems to become more concentrated around 0. It could be a specific pattern of residuals which the residuals decrease as the percentage of small classes increase.
+
+
+(f)
+
+```{r}
+plot(Pct.20, fit$residuals, pch = 19, xlab = "Percentage of Small Class",
+ylab = "Residuals", ylim = c(-15, 15))
+abline(h = 10, col = "red", lwd = 3)
+abline(h = -10, col = "red", lwd = 3)
+#identify(Pct.20, fit$residuals, n = 6, labels = School)
+#After selecting the points, the points are as follows: 24 43 112 138 148 185 186
+outlier <- c(24, 43, 112, 138, 185, 186)
+text(x = Pct.20[outlier], y = fit$residuals[outlier]+1, labels = School[outlier] )
+```
+
+
+Question 8:
+
+(a)
+
+
+```{r}
+plot(Accept.rate, Top.10, pch = 19, xlab = "Acceptance Rate", ylab = "Top 10 Percentage")
+lines(lowess(Accept.rate, Top.10), col = "red", lwd = 3)
+```
+
+From the chart above, we can see there is a negative correlation between the acceptance rate and the top 10 percentage. Then, we will try some linear model.
+
+
+```{r}
+fit <- line(Accept.rate, Top.10)
+plot(Accept.rate, fit$residuals, pch = 19, xlab = "Acceptance Rate", ylab = "Residuals")
+abline(h = 0, lwd = 3, col = "red")
+```
+ 
+From the residual plot, we can see the residuals are not normally distributed, we should consider another
+model, it seems that the residuals increases first and decreases, and then increases again, so we may need a quadratic function to fit for this model.
+
+(b)  
+
+
+From the scatter plot in the question (a), we can see the plot is more concentrated distributed in two areas where acceptance rate is either small or big. Also, from the lowness function above, it showed that the slope changes differently from one cluster to the other. So I think the schools are always divided into elite and non-elite schools.
+ 
+
+Question 9:
+
+(a) 
+
+```{r}
+hist(Full.time, col = "lightblue", xlab = "Faculty Hired Full-time",
+ylab = "Frequency", main = "")
+```
+This is a left-skewed distribution, with a larger percentage of faculties are hired full time.
+
+(b)
+
+```{r}
+froot_full <- sqrt(Full.time/100) - sqrt(1-Full.time/100)
+flog_full <- log(Full.time/100 + 0.01) - log(1-Full.time/100 + 0.01)
+par(mfrow = c(1,2))
+hist(froot_full, main = "Histogram of fSquare Root of Variable",
+xlab = "Square Root of Variable", ylab = "Frequency", col = "lightblue")
+hist(flog_full, main = "Histogram fLog of Variable",
+xlab = "Log of Variable", ylab = "Frequency", col = "lightpink")
+```
+
+I think flog transformation is better than the fsquare root transformation.
+
+(c)  
+
+I will choose the fLog transformation since it is more likely to be a normal.
+
+```{r}
+mu <- mean(flog_full)
+sigma <- var(flog_full)
+sd <- sqrt(sigma)
+lower <- mu - sd
+upper <- mu + sd
+matrix(c(round(lower,2), round(upper,2)),1,2)
+```
+ 
+So this is the interval that includes around 68% of data in the data set.  
+
+PS: Here there includes some value that are infinity, I simply changed the flog function a little. I did not omit the data since all data points reveal information of the population. Also I can use the quantile function:
+
+```{r}
+quantile(flog_full, c(0.16, 0.8))
+```
+
+They are similar to each other.
+
+
+Question 10:  
+
+(a)
+
+```{r}
+stripchart(Alumni.giving, method = "stack", pch = 19, xlab = "Alumni Contributor Percentage")
+```
+
+(b)
+
+```{r}
+stripchart(Alumni.giving, method = "stack", pch = 19, xlab = "Alumni Contributor Percentage")
+#identify(Alumni.giving, n = 3, labels = School, tolerance = 1)
+School[which(Alumni.giving > 45)]
+```
+
+(c) 
+
+
+```{r}
+roots_alu = sqrt(Alumni.giving)
+logs_alu = log(Alumni.giving)
+par(mfrow = c(1,2))
+stripchart(roots_alu, method = "stack", pch = 19, xlab = "Alumni Contributor Percentage",
+main = "Square Root Case")
+stripchart(logs_alu, method = "stack", pch = 19, xlab = "Alumni Contributor Percentage",
+main = "Log Case")
+```
+From the Chart above, we can see that the log transformation is better since it looks more likely to be an approximately normal distribution.
+
+
+Question 11:
+
+(a) 
+
+```{r}
+stripchart(Alumni.giving~Tier, method = "stack", pch = 19,
+col = c("lightblue", "lightpink", "lightgreen", "lightgray"),
+xlab = "Alumni Contribution Percentage", ylab = "Tier")
+```
+
+
+(b)
+
+
+```{r}
+mu1 <- mean(Alumni.giving[which(Tier==1)])
+mu2 <- mean(Alumni.giving[which(Tier==2)])
+mu3 <- mean(Alumni.giving[which(Tier==3)])
+mu4 <- mean(Alumni.giving[which(Tier==4)])
+RES <- as.matrix(c(mu1, mu2, mu3,mu4))
+rownames(RES) <- c("Tier 1","Tier 2","Tier 3","Tier 4")
+print(RES)
+
+plot(RES, xlab = "Tier", ylab = "Average Contribution", pch = 19, cex = 3, col = "red")
+```
+From the picture above, we can see that school from tier one has the most alumni contribution, tier 2 follows it, then tier 3, at last tier 4. Better school have more alumni contributions. As one moves from 4 to 1, the average is increasing.
+
+
+(c)
+
+```{r}
+range1 <- diff(range(Alumni.giving[which(Tier==1)]))
+range2 <- diff(range(Alumni.giving[which(Tier==2)]))
+range3 <- diff(range(Alumni.giving[which(Tier==3)]))
+range4 <- diff(range(Alumni.giving[which(Tier==4)]))
+RAN <- as.matrix(c(range1, range2, range3, range4))
+rownames(RAN) <- c("Tier 1","Tier 2","Tier 3","Tier 4")
+print(RAN)
+plot(RAN, xlab = "Tier", ylab = "Range of Contribution", pch = 19, cex = 3, col = "red")
+```
+From the plot, we can see that the Tier one has the largest range. Then as the tier goes down, the range becomes smaller. As one moves from 4 to 1, the range is increasing.
+
+
+
+(d)
+
+
+```{r}
+par(mfrow = c(1,2))
+stripchart(roots_alu~Tier, method = "stack", pch = 19,
+col = c("lightblue", "lightpink", "lightgreen", "lightgray"),
+xlab = "Alumni Contribution Percentage", ylab = "Tier",
+main = "Stripchart After Root Transformation")
+
+
+stripchart(logs_alu~Tier, method = "stack", pch = 19,
+col = c("lightblue", "lightpink", "lightgreen", "lightgray"),
+xlab = "Alumni Contribution Percentage", ylab = "Tier",
+main = "Stripchart After Log Transformation")
+
+```
+
+
+(e)  
+
+Root transformation successfully makes the spread almost the same for only tier 2, 3 and 4, but the spread of tier 1 is still obviously larger than the other three. For the log transformation, it makes the spread of tier 1, 2 and 3 almost the same but make tier 4 a little more widely spreaded than the other three.
+

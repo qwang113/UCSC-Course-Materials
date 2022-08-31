@@ -1,0 +1,15 @@
+---
+title: "206b Final"
+author: "Qi Wang"
+date: "2022/3/17"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r}
+
+```
+

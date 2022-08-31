@@ -1,0 +1,552 @@
+---
+title: "hw4"
+author: "Qi Wang"
+date: "2022/5/18"
+output: pdf_document
+---
+
+```{r}
+rm(list = (ls()))
+library(rstan)
+library(bayesplot)
+```
+
+#Question 2
+
+```{r}
+set.seed(0)
+n = 20
+m = 10
+p = 5
+mu_0 <- 5
+mu_others <- 1:p
+tau_0 <- 1
+tau_others <- rep(1, p)
+beta_0 <- rnorm(n, mu_0, sd = tau_0)
+sig <- 1.5
+beta_others <- mvtnorm::rmvnorm(n, mean = mu_others, sigma = diag(tau_others^2))
+beta_all <- cbind(beta_0, beta_others)
+
+#Another way to generate Y
+#X <- array(runif(m*n*p, -10, 10), c(n,m,p))
+
+
+#Y <- matrix(NA, nrow = n, ncol = m)
+#for (i in 1:n) {
+#  for (j in 1:m) {
+#    Y[i,j] <- beta_0[i] + sum(beta_others[i,] * X[i,j,]) + rnorm(1, mean = 0 , sd = sig)
+#  }
+#}
+
+```
+
+```{r}
+set.seed(0)
+X <- matrix( rep( c(rep(c(rep(1, m),rep(0,m*(n))),n-1),rep(1,m)), p), ncol = n*(p), nrow = m*n)
+X[which( X == 1)] <- runif(length(which(X == 1)), -10, 10)
+int_mat <- matrix( c(rep(c(rep(1, m),rep(0,m*(n))),n-1),rep(1,m)), ncol = n, nrow = m*n)
+X_all <- round(cbind(int_mat, X),3)
+beta_mat <- as.matrix(as.vector(beta_all), nrow = n*(p+1) )
+Y_sim <- X_all %*% beta_mat + rnorm(m*n, mean = 0, sd = sig)
+X_all_1 <- matrix(X_all[-which(X_all==0)], nrow = m*n, ncol = p+1)
+```
+
+```{r}
+
+m1 <- "
+
+data{
+int m;
+int n;
+int p;
+vector[m*n] Y_sim;
+vector[m*n] x_1;
+vector[m*n] x_2;
+vector[m*n] x_3;
+vector[m*n] x_4;
+vector[m*n] x_5;
+
+
+}
+
+parameters{
+
+  real<lower = 0> sigma_1;
+  vector[p] beta_reg_1;
+  real beta_int;
+}
+
+model{
+
+
+beta_int  ~ normal(0,1000);
+for (i in 1:p){
+
+beta_reg_1[i] ~ normal(0,1000);
+
+}
+
+sigma_1 ~ inv_gamma(0.001,0.001);
+
+
+for (i in 1: m*n)
+Y_sim[i] ~ normal( beta_int + beta_reg_1[1]*x_1[i] +  beta_reg_1[2]*x_2[i]  +  beta_reg_1[3]*x_3[i]  +  beta_reg_1[4]*x_4[i]  +  beta_reg_1[5]*x_5[i] , sigma_1 );
+
+}
+
+
+"
+
+stan_data <- list(
+  
+  x_1 = X_all_1[,2],
+  x_2 = X_all_1[,3],
+  x_3 = X_all_1[,4],
+  x_4 = X_all_1[,5],
+  x_5 = X_all_1[,6],
+  m = 10,
+  n = 20,
+  Y_sim = as.vector(Y_sim),
+  p = 5
+  
+  
+)
+
+fit.stan <- stan(model_code = m1, data = stan_data, iter = 20000, chains = 1)
+mcmc_dens(fit.stan)
+```
+
+```{r}
+
+m1 <- "
+
+data{
+int m;
+int n;
+int p;
+matrix[n,m] Y_sim;
+matrix[n,m] x_1;
+matrix[n,m] x_2;
+matrix[n,m] x_3;
+matrix[n,m] x_4;
+matrix[n,m] x_5;
+
+
+
+}
+
+parameters{
+
+  real<lower = 0> sigma_1;
+  real<lower = 0> tau_0;
+  real mu_0;
+  vector[p] beta_reg_1;
+  vector[n] beta_int;
+}
+
+model{
+
+
+
+for (i in 1:p){
+beta_reg_1[i] ~ normal(0,100);
+}
+
+for(i in 1:n){
+beta_int[i] ~ normal(mu_0,tau_0);
+}
+
+
+
+for (i in 1: n){
+  for(j in 1:m){
+  Y_sim[i,j] ~ normal( beta_int[i] + beta_reg_1[1]*x_1[i,j] +  beta_reg_1[2]*x_2[i,j]  +  beta_reg_1[3]*x_3[i,j]  +  beta_reg_1[4]*x_4[i,j]  +  beta_reg_1[5]*x_5[i,j] , sigma_1 );
+  }
+}
+}
+
+
+"
+
+stan_data <- list(
+  
+  x_1 =  matrix(X_all_1[,2], nrow = n, ncol = m, byrow = TRUE),
+  x_2 =  matrix(X_all_1[,3], nrow = n, ncol = m, byrow = TRUE),
+  x_3 =  matrix(X_all_1[,4], nrow = n, ncol = m, byrow = TRUE),
+  x_4 =  matrix(X_all_1[,5], nrow = n, ncol = m, byrow = TRUE),
+  x_5 =  matrix(X_all_1[,6], nrow = n, ncol = m, byrow = TRUE),
+  m = 10,
+  n = 20,
+  Y_sim = matrix(Y_sim, nrow = n, ncol = m, byrow = TRUE),
+  p = 5
+  
+  
+)
+
+fit.stan <- stan(model_code = m1, data = stan_data, iter = 20000, warmup = 5000, chains = 1)
+mcmc_dens(fit.stan, pars = c("sigma_1","beta_reg_1[1]","beta_reg_1[2]","beta_reg_1[3]","beta_reg_1[4]","beta_reg_1[5]","mu_0"))
+
+```
+```{r}
+
+m1 <- "
+
+data{
+int m;
+int n;
+int p;
+matrix[n,m] Y_sim;
+matrix[n,m] x_1;
+matrix[n,m] x_2;
+matrix[n,m] x_3;
+matrix[n,m] x_4;
+matrix[n,m] x_5;
+
+
+
+}
+
+parameters{
+
+  real<lower = 0> sigma_1;
+  real<lower = 0> tau_0;
+  real mu_0;
+  vector[n] beta_int;
+  matrix[n,p] beta_others;
+  vector[p] mu_others;
+  vector[p] tau_others;
+}
+
+model{
+
+
+
+
+for(i in 1:n){
+beta_int[i] ~ normal(mu_0,tau_0);
+  for(j in 1:p){
+  beta_others[i,j] ~ normal(mu_others[j], tau_others[j]);
+  
+  }
+}
+
+
+
+for (i in 1: n){
+  for(j in 1:m){
+  Y_sim[i,j] ~ normal( beta_int[i] + beta_others[i,1]*x_1[i,j] +  beta_others[i,2]*x_2[i,j]  +  beta_others[i,3]*x_3[i,j]  +  beta_others[i,4]*x_4[i,j]  +  beta_others[i,5]*x_5[i,j] , sigma_1 );
+  }
+}
+}
+
+
+"
+
+stan_data <- list(
+  
+  x_1 =  matrix(X_all_1[,2], nrow = n, ncol = m, byrow = TRUE),
+  x_2 =  matrix(X_all_1[,3], nrow = n, ncol = m, byrow = TRUE),
+  x_3 =  matrix(X_all_1[,4], nrow = n, ncol = m, byrow = TRUE),
+  x_4 =  matrix(X_all_1[,5], nrow = n, ncol = m, byrow = TRUE),
+  x_5 =  matrix(X_all_1[,6], nrow = n, ncol = m, byrow = TRUE),
+  m = 10,
+  n = 20,
+  Y_sim = matrix(Y_sim, nrow = n, ncol = m, byrow = TRUE),
+  p = 5
+  
+  
+)
+
+fit.stan <- stan(model_code = m1, data = stan_data, iter = 20000, warmup = 5000, chains = 1)
+mcmc_dens(fit.stan, pars =c("mu_0","mu_others[1]","mu_others[2]","mu_others[3]","mu_others[4]","mu_others[5]","sigma_1")  )
+```
+
+# Question 3
+
+```{r}
+library(tidytuesdayR)
+library(lubridate)
+library(rstan)
+library(bayesplot)
+raw <- tidytuesdayR::tt_load(2020, week = 18)$grosses
+raw$year = lubridate::year(raw$week_ending)
+data <- subset(raw, year >= 2000)
+tab <- table(data$show)
+sub <- names(tab)[which(tab > 370)]
+data <- subset(data, show %in% sub)
+# Change the outcome to million dollar scales
+broadway <- data.frame(gross = data$weekly_gross / 1e6,
+show = data$show,
+week_ending = data$week_ending,
+id.show = match(data$show, sub),
+id.year = data$year - 1999,
+id.week = data$week_number)
+```
+```{r}
+attach(broadway)
+
+model_broad_way_1 <-"
+data{
+int n;
+int sty;
+int yty;
+vector[n] gross;
+int id_show[n];
+int id_year[n];
+real mu_alpha;
+real mu_beta;
+real<lower = 0> tau_alpha;
+real<lower = 0> tau_beta;
+
+}
+
+parameters{
+
+vector[sty] alpha;
+vector[yty] beta;
+real<lower = 0> sigma;
+
+}
+
+
+model{
+
+for(i in 1:sty){
+alpha[i] ~ normal(mu_alpha, tau_alpha);
+}
+
+for(j in 1:yty){
+beta[j] ~ normal(mu_beta, tau_beta);
+}
+
+
+
+for(k in 1:n){
+
+gross[k] ~ normal( alpha[id_show[k]] + beta[ id_year[k]] , sigma );
+}
+
+}
+
+
+generated quantities{
+
+vector[n] pred_y;
+
+for(l in 1:n){
+
+pred_y[l] = normal_rng(alpha[id_show[l]] + beta[ id_year[l]], sigma);
+
+}
+
+
+}
+
+"
+  
+data_broad_way_1  <- list(
+  gross = broadway$gross,
+  id_year = as.integer(broadway$id.year),
+  id_show = as.integer(broadway$id.show),
+  n = length(broadway$gross),
+  sty = length(table(broadway$id.show)),
+  yty = length(table(broadway$id.year)),
+  mu_alpha = 0,
+  mu_beta = 0,
+  tau_alpha = 1.5,
+  tau_beta = 1
+)
+options(mc.cores = parallel::detectCores(16))
+fit.stan_dd <- stan(model_code = model_broad_way_1, data = data_broad_way_1, iter = 20000, warmup = 5000, chains = 1 )
+
+
+```
+```{r}
+pos_mean <- summary(fit.stan_dd)$summary[,1]
+pred_mean <- pos_mean[33:(length(pos_mean)-1)]
+```
+
+
+```{r}
+ind <- sample(1:length(gross), size = 100, replace = FALSE)
+plot(gross[ind], type = 'l', ylim = c(0,3), ylab = "gross", main = "Random Selected Sample Prediction Performance")
+lines(pred_mean[ind], type = 'l', col = "red")
+legend("topleft",c("True","Predictive"), col = c("black","red"), lty = c(1,1))
+```
+
+```{r}
+model_broad_way_1 <-"
+data{
+int n;
+int sty;
+int yty;
+int wty;
+vector[n] gross;
+int id_show[n];
+int id_year[n];
+int id_week[n];
+real mu_alpha;
+real mu_beta;
+real mu_gamma;
+real<lower = 0> tau_gamma;
+real<lower = 0> tau_alpha;
+real<lower = 0> tau_beta;
+
+}
+
+parameters{
+
+vector[sty] alpha;
+vector[sty] gamma;
+vector[wty] beta;
+real<lower = 0> sigma;
+
+}
+
+
+model{
+
+for(i in 1:sty){
+alpha[i] ~ normal(mu_alpha, tau_alpha);
+gamma[i] ~ normal(mu_gamma, tau_gamma);
+}
+
+for(j in 1:wty){
+beta[j] ~ normal(mu_beta, tau_beta);
+}
+
+
+
+for(k in 1:n){
+
+gross[k] ~ normal( alpha[id_show[k]] + beta[ id_week[k]] + id_year[k]*gamma[ id_show[k] ] , sigma );
+}
+
+}
+
+
+generated quantities{
+
+vector[n] pred_y;
+
+for(l in 1:n){
+
+pred_y[l] = normal_rng(alpha[id_show[l]] + beta[ id_week[l]] + id_year[l]*gamma[ id_show[l] ] , sigma);
+
+}
+
+
+}
+
+"
+  
+data_broad_way_1  <- list(
+  gross = broadway$gross,
+  id_year = as.integer(broadway$id.year),
+  id_show = as.integer(broadway$id.show),
+  id_week = as.integer(broadway$id.week),
+  n = length(broadway$gross),
+  sty = length(table(broadway$id.show)),
+  yty = length(table(broadway$id.year)),
+  wty = length(table(broadway$id.week)),
+  mu_alpha = 0,
+  mu_beta = 0,
+  mu_gamma = 0,
+  tau_alpha = 1.5,
+  tau_beta = 1,
+  tau_gamma = 1
+)
+options(mc.cores = parallel::detectCores(16))
+fit.stan_dd <- stan(model_code = model_broad_way_1, data = data_broad_way_1, iter = 20000, warmup = 5000, chains = 1 )
+```
+```{r}
+pos_mean <- summary(fit.stan_dd)$summary[,1]
+mcmc_dens(fit.stan_dd, pars = c("alpha[1]","alpha[2]","alpha[3]","alpha[4]","alpha[5]","alpha[6]","alpha[7]","alpha[8]","alpha[9]","alpha[10]"))
+
+mcmc_dens(fit.stan_dd, pars = c("beta[1]","beta[2]","beta[3]","beta[4]","beta[5]","beta[6]","beta[7]","beta[8]","beta[9]","beta[10]","beta[11]",
+                                "beta[12]","beta[13]","beta[14]","beta[15]","beta[16]","beta[17]","beta[18]","beta[19]","beta[20]","beta[21]"
+                                ,"beta[22]","beta[23]","beta[24]","beta[25]"))
+
+
+
+mcmc_dens(fit.stan_dd, pars =paste("beta[",26:53,"]", sep = "") )
+
+mcmc_dens(fit.stan_dd, pars =paste("gamma[",1:10,"]", sep = "") )
+
+plot(fit.stan_dd, pars = "alpha")
+plot(fit.stan_dd, pars = "gamma")
+```
+
+```{r}
+index_2 <- sample(1:length(broadway$gross), size = 100, replace = FALSE)
+pred_mean <- pos_mean[75:(length(broadway$gross)-1)]
+
+plot(broadway$gross[index_2], type = 'l', ylim = c(0,3), ylab = "gross", main = "Random Selected Sample Prediction Performance")
+lines(pred_mean[index_2], type = 'l', col = "red")
+legend("topleft",c("True","Predictive"), col = c("black","red"), lty = c(1,1))
+
+```
+```{r}
+library(datasets)
+data("mtcars")
+y <- as.matrix(mtcars$qsec)
+x <- as.matrix(cbind(1, mtcars[,-7]))
+n = length(y)
+iter = 20000
+
+beta <- matrix(NA, nrow = iter, ncol = ncol(x))
+z <- matrix(NA,nrow = iter, ncol = ncol(x))
+sig <- rep(NA, iter)
+q <- 0.8
+sig_beta <- rep(1, ncol(x))
+
+beta[1,] <- 1
+z[1,] <- rbinom(ncol(x), 1, p = q)
+sig[1] <- 1
+tau_0 <- 0.01
+tau_1 <- 1000
+
+i <- 1
+for (i in 1:(iter-1)) {
+  # Generate beta
+  k <- 1
+  for (k in 1:ncol(x)) {
+    
+    p_i <- q*dnorm(beta[i,k], mean = 0, sd = sqrt(tau_1)) / ( q*dnorm(beta[i,k], mean = 0, sd = sqrt(tau_1)) + (1-q)*dnorm(beta[i,k], mean = 0, sd = sqrt(tau_0) )  )
+    z[i+1,k] <- rbinom(1,1,prob = p_i)
+    
+  }
+  j <- 1
+  for (j in 1:ncol(x)) {
+    
+    beta_partial <- c(beta[i+1,0:(j-1)], beta[i, j:ncol(x)])
+    
+    mu_1 <- t(y - x[,-j] %*% matrix(beta_partial[-j], ncol = 1)) %*% matrix(x[,j], ncol = 1) / sig[i] / ( sum(x[,j]^2)/sig[i] + 1/(tau_1) )
+    mu_0 <- t(y - x[,-j] %*% matrix(beta_partial[-j], ncol = 1)) %*% matrix(x[,j], ncol = 1) / sig[i] / ( sum(x[,j]^2)/sig[i] + 1/(tau_0) )
+    var_1 <- 1 / ( sum(x[,j]^2)/sig[i] + 1/(tau_1) )
+    var_0 <- 1 / ( sum(x[,j]^2)/sig[i] + 1/(tau_0) )
+    
+    beta[i+1,j] <- z[i+1,j]*rnorm(1, mean = mu_1, sd = sqrt(var_1)) + (1-z[i+1,j])*rnorm(1, mean = mu_0, sd = sqrt(var_0))
+  }
+  inv_sig <- rgamma(1, shape = n/2 + 1 , rate = sum( ( y - x %*% matrix(beta[i+1,], ncol = 1) ) ^2 )/2 )
+  sig[i+1] <- 1/inv_sig
+}
+
+
+coeff <- rbind(colMeans(z),colMeans(beta))
+rownames(coeff) <- c("Probability Included", "Estimated Coefficient")
+colnames(coeff) <- colnames(x)
+
+
+summ <- apply(beta, 2, quantile, c(0.025, 0.5,0.975) )
+colnames(summ) <- colnames(x)
+
+knitr::kable(round(coeff,3), format = "latex")
+knitr::kable(round(summ,3), format = "latex")
+```
+
+
+
+
+
+

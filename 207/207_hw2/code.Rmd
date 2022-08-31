@@ -1,0 +1,784 @@
+---
+title: "hw2"
+author: "Qi Wang"
+date: "2022/3/29"
+output: 
+  pdf_document:
+        latex_engine: xelatex 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+rm(list = ls())
+library(mvtnorm)
+library(matrixsampling)
+```
+# Question 1: Hierarchical Model - School Treatment Effect
+## Question 1a: Hierarchical Model - School Treatment Effect - Prior on Tau
+```{r}
+y <- c(28, 8, -3, 7, -1, 1, 18, 12)
+sdy <- c(15, 10, 16, 11, 9, 11, 10, 18)
+maxit <- 10000
+theta <- matrix(NA, nrow = length(y), ncol = maxit)
+mu <- tau <- rep(NA, maxit)
+theta[,1] <- mean(y)
+mu[1] <- mean(y)
+tau[1] <- 10
+i <- 1
+for (i in 1:(maxit-1)) {
+# Generate theta
+  mean_vec <- (1/sdy^2 * y + 1/tau[i] * mu[i]) / (1/sdy^2 + 1/tau[i])
+  cov_mat <- diag(1/(1/sdy^2 + 1/tau[i]), ncol = length(mean_vec))
+  theta[,i+1] <- mvtnorm::rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+
+# Generate mu  
+  mu[i+1] <- rnorm(1, mean = mean(theta[,i+1]), sd = sqrt(tau[i]/length(y)))
+  
+# Generate tau
+  inv_tau <- rgamma(1, shape = (length(y)-1)/2, rate = sum( (theta[,i+1]-mu[i+1])^2 ) /2 )
+  tau[i+1] <- 1/inv_tau
+}
+```
+
+```{r}
+thin <- seq(from = 2000, to = 10000, by = 8)
+theta_final <- theta[,thin]
+max_each <- apply(theta_final, 2, max)
+best <- rep(NA, length(y))
+for (j in 1:length(y)) {
+  best[j] <- length(which(theta_final[j,] == max_each)) / length(thin)
+}
+best <- matrix(best, ncol = length(y))
+colnames(best) <- AH <- c("A", "B", "C", "D", "E", "F", "G", "H")
+knitr::kable(round(best,3), caption = "Probability of Best School - Prior on Tau", align = "c")
+```
+
+```{r}
+pair_mat <- matrix(NA, length(y), length(y))
+
+i<-j<-1
+
+for (i in 1:length(y)) {
+  for (j in 1:length(y)) {
+    pair_mat[i,j] <- length(which(theta_final[i,] > theta_final[j,])) / length(thin)
+  }
+  
+}
+rownames(pair_mat) <- colnames(pair_mat) <- AH
+
+knitr::kable(round(pair_mat,3), caption = "Pairwise Comparison - Prior on Tau (Row Index larger than Column Index)", align = "c" )
+
+```
+
+## Question 1b: Hierarchical Model - School Treatment Effect - Very Large Tau
+```{r}
+maxit <- 10000
+theta <- matrix(NA, nrow = length(y), ncol = maxit)
+mu <- rep(NA, maxit)
+theta[,1] <- mean(y)
+mu[1] <- mean(y)
+tau <- 1e6
+i <- 1
+for (i in 1:(maxit-1)) {
+#Generate theta
+  mean_vec <- (1/sdy^2 * y + 1/tau * mu[i]) / (1/sdy^2 + 1/tau)
+  cov_mat <- diag(1/(1/sdy^2 + 1/tau), ncol = length(mean_vec))
+  theta[,i+1] <- mvtnorm::rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+
+#Generate mu  
+  mu[i+1] <- rnorm(1, mean = mean(theta[,i+1]), sd = sqrt(tau/length(y)))
+  
+}
+```
+
+```{r}
+thin <- seq(from = 2000, to = 10000, by = 8)
+theta_final <- theta[,thin]
+max_each <- apply(theta_final, 2, max)
+best <- rep(NA, length(y))
+for (j in 1:length(y)) {
+  best[j] <- length(which(theta_final[j,] == max_each)) / length(thin)
+}
+best <- matrix(best, ncol = length(y))
+colnames(best) <- AH <- c("A", "B", "C", "D", "E", "F", "G", "H")
+knitr::kable(round(best,3), caption = "Probability of Best School - Tau Very Big", align = "c")
+```
+
+```{r}
+pair_mat <- matrix(NA, length(y), length(y))
+
+i<-j<-1
+
+for (i in 1:length(y)) {
+  for (j in 1:length(y)) {
+    pair_mat[i,j] <- length(which(theta_final[i,] > theta_final[j,])) / length(thin)
+  }
+  
+}
+rownames(pair_mat) <- colnames(pair_mat) <- AH
+
+knitr::kable(round(pair_mat,3), caption = "Pairwise Comparison - Tau Very Big (Row Index larger than Column Index)", align = "c" )
+
+```
+
+## Question 1b: Hierarchical Model - School Treatment Effect - Very Small Tau
+```{r}
+maxit <- 10000
+theta <- matrix(NA, nrow = length(y), ncol = maxit)
+mu <- rep(NA, maxit)
+theta[,1] <- mean(y)
+mu[1] <- mean(y)
+tau <- 1e-20
+i <- 1
+for (i in 1:(maxit-1)) {
+#Generate theta
+  mean_vec <- (1/sdy^2 * y + 1/tau * mu[i]) / (1/sdy^2 + 1/tau)
+  cov_mat <- diag(1/(1/sdy^2 + 1/tau), ncol = length(mean_vec))
+  theta[,i+1] <- mvtnorm::rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+
+#Generate mu  
+  mu[i+1] <- rnorm(1, mean = mean(theta[,i+1]), sd = sqrt(tau/length(y)))
+  
+}
+```
+
+```{r}
+thin <- seq(from = 2000, to = 10000, by = 8)
+theta_final <- theta[,thin]
+max_each <- apply(theta_final, 2, max)
+best <- rep(NA, length(y))
+for (j in 1:length(y)) {
+  best[j] <- length(which(theta_final[j,] == max_each)) / length(thin)
+}
+best <- matrix(best, ncol = length(y))
+colnames(best) <- AH <- c("A", "B", "C", "D", "E", "F", "G", "H")
+knitr::kable(round(best,3), caption = "Probability of Best School - Tau Very Small", align = "c")
+```
+
+
+
+```{r}
+pair_mat <- matrix(NA, length(y), length(y))
+
+i<-j<-1
+
+for (i in 1:length(y)) {
+  for (j in 1:length(y)) {
+    pair_mat[i,j] <- length(which(theta_final[i,] > theta_final[j,])) / length(thin)
+  }
+  
+}
+rownames(pair_mat) <- colnames(pair_mat) <- AH
+
+knitr::kable(round(pair_mat,3), caption = "Pairwise Comparison - Tau Very Small (Row Index larger than Column Index)", align = "c" )
+
+```
+
+# Question 2: Mixture Model
+
+```{r}
+x <- seq(from = -3, to = 3, by = 0.01)
+ybar <- -0.25
+
+pri <- 0.8*dnorm(x, mean = 1, sd = 0.5) + 0.2*dnorm(x, mean = -1, sd = 0.5)
+posw <- c(0.8*exp(41/4*ybar^2), 0.2*exp(41/4 *(39/41)^2*ybar^2))
+posw_n <- posw/sum(posw)
+pos <- posw_n[1] * dnorm(x, mean = ybar, sd = sqrt(4/41)) + posw_n[2] * dnorm(x, mean = 39/41*ybar, sd = sqrt(4/41))
+plot(x = x, y = pri, type = 'l', col = 'red', lwd = 2, ylim = c(0,1.5), main = "Prior and Posterior Density", ylab = "Probability", xlab = "")
+lines(x = x, y = pos, type = 'l', col = 'blue', lwd = 2)
+legend("topleft", c("Prior", "Posterior"), col = c("red","blue"), lty = c(1,1), lwd = c(2,2))
+```  
+
+# Question 3: Hierachical Beta Distribution  
+
+
+## Question 3.b: Hierachical Beta Distribution - Marginal Posterior for Hyperparameter
+```{r}
+yj <- c(16, 9, 10, 13, 19, 20, 18, 17, 35, 55)
+y2 <- c(58, 90, 48, 57, 103, 57, 86, 112, 273, 64)
+nj <- yj + y2
+N <- length(yj)
+
+
+alpha <- seq(from = 0.01, to = 6, by = 0.01)
+beta <- seq(from = 0.01, to = 15, by = 0.01)
+
+pos <- matrix(NA, nrow = length(alpha), ncol = length(beta))
+pos_fun <- function(alpha, beta){
+  out <- (alpha + beta)^(-5/2) * ( beta(a = alpha, b = beta) )^(-N) *
+    prod( beta(a = alpha + yj, b = beta + nj - yj)   )  
+  return(out)
+}
+
+```
+
+```{r}
+i <- j <- 1
+for (i in 1:length(alpha)) {
+  for (j in 1:length(beta)) {
+    pos[i,j] <- pos_fun(alpha = alpha[i], beta = beta[j])
+  }
+  
+}
+
+```
+
+```{r}
+contour(x = alpha, y = beta, z = pos/sum(pos), nlevels = 8, xlab = "Alpha", ylab = "Beta", main = "Marginal Posterior Density of Hyperparameters")
+```
+
+```{r}
+samplesize <- 1000
+sample_alpha_index <- rep(NA, samplesize)
+sample_beta_index <- rep(NA, samplesize)
+
+i <-1
+for (i in 1:samplesize) {
+  sample_alpha_index[i] <- sample(1:length(alpha), size = 1, prob = rowSums(pos))
+  sample_beta_index[i] <- sample(1:length(beta), size = 1, prob = pos[sample_alpha_index[i],])
+}
+```
+
+
+```{r}
+
+sample_alpha <- alpha[sample_alpha_index]
+sample_beta <- beta[sample_beta_index]
+sample_theta <- matrix(NA, ncol = samplesize, nrow = N)
+den <- MASS::kde2d(x = sample_alpha, y = sample_beta)
+contour(x = den$x, y = den$y, z = den$z, xlab = "Alpha", ylab = "Beta", main = "Sampling Distribution of Hyperparameters")
+i <- j <- 1
+for (i in 1:N) {
+  for (j in 1:samplesize) {
+    sample_theta[i,j] <- rbeta(1, shape1 = sample_alpha[j]+yj[i], shape2 = nj[i] + sample_beta[j] - yj[i])
+  }
+}
+```
+```{r}
+i <- 1
+par(mfrow = c(3,4))
+for (i in 1:N) {
+  plot(density(sample_theta[i,]), type = "l", main = paste("Posterior of", "Theta", i), lwd = 2, xlab = paste("theta", i), ylab = "Probability")
+  abline(v = (yj/nj)[i], lwd = 2, col = "red")
+}
+```
+```{r}
+set.seed(0)
+i <- 1
+theta_average <- rep(NA, samplesize)
+for (i in 1:samplesize) {
+  theta_average[i] <- rbeta(1, shape1 = sample_alpha, shape2 = sample_beta)
+}
+plot(density(theta_average), type = 'l', xlab = "Overall Theta", ylab = "Probability", main = "Overall Theta Density Plot", col = "red", lwd = 2)
+CI <- round(c(quantile(theta_average, 0.025),quantile(theta_average, 0.975)), 3)
+print(CI)
+```
+
+
+```{r}
+i <-1
+new_alpha_index <- new_beta_index <- rep(NA, samplesize)
+new_theta <- rep(NA, samplesize)
+for (i in 1:samplesize) {
+  new_alpha_index[i] <- sample(1:length(alpha), size = 1, prob = rowSums(pos))
+  new_beta_index[i] <- sample(1:length(beta), size = 1, prob = pos[new_alpha_index[i],])
+}
+
+new_alpha <- alpha[new_alpha_index]
+new_beta <- beta[new_beta_index]
+new_theta <- matrix(NA, ncol = samplesize, nrow = N)
+
+i <- j <- 1
+for (i in 1:samplesize) {
+  
+    new_theta[i] <- rbeta(1, shape1 = new_alpha[i], shape2 = new_beta[i])
+  
+}
+```
+
+```{r}
+new_y <- rep(NA, samplesize)
+i <- 1
+for (i in 1: samplesize){
+  new_y[i] <- rbinom(1, size = 100, prob = new_theta[i])
+}
+CI <- round(c(quantile(new_y, 0.025),quantile(new_y, 0.975)), 3)
+plot(density(new_y), type = 'l', xlab = "New y", ylab = "Probability", main = "Predictive Density", col = "red", lwd = 2)
+print(CI)
+```
+# Question 5: NIW Distribution
+
+## K = 2
+
+```{r}
+#Initialize
+X <- read.csv(here::here("SimMovieRating.csv"))
+X <- as.matrix(X)
+K <- 2
+k0 <- 2
+iter <- 10000
+n <- 100
+p <- 30
+
+#Initialize UV
+U <- array(NA, dim = c(K,n,iter))
+V <- array(NA, dim = c(K,p,iter))
+U[,,1] <- 1
+V[,,1] <- 1
+#Initialize mean of u and v
+mu_u <- matrix(NA, nrow = K, ncol = iter )
+mu_v <- matrix(NA, nrow = K, ncol = iter )
+mu_u[,1] <- 1
+mu_v[,1] <- 1
+#Initialize covariance matrix
+sig_u <- array(NA, dim = c(K,K,iter))
+sig_v <- array(NA, dim = c(K,K,iter))
+sig_u[,,1] <- diag(1, nrow = K)
+sig_v[,,1] <- diag(1, nrow = K)
+```
+
+
+```{r}
+#Gibbs Sampler
+i <- 1
+for (i in 1:(iter-1)) {
+  #Sample Ui
+  for (m in 1:n) {
+    mean_vec <- solve(V[,,i]%*%t(V[,,i]) + solve(sig_u[,,i])) %*%(V[,,i] %*% X[m,] + solve(sig_u[,,i]) %*% as.matrix(mu_u[,i]))
+    cov_mat <-  solve(V[,,i]%*%t(V[,,i]) + solve(sig_u[,,i]))
+    U[,m,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  }
+  #Sample Vi
+  for (l in 1:p) {
+    mean_vec <- solve(U[,,i+1]%*%t(U[,,i+1]) + solve(sig_v[,,i])) %*%(U[,,i+1] %*% X[,l] + solve(sig_v[,,i]) %*% as.matrix(mu_v[,i]))
+    cov_mat <-  solve(U[,,i+1]%*%t(U[,,i+1]) + solve(sig_v[,,i]))
+    V[,l,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  }
+  #Sample mean of u
+  mean_vec <- rowSums(U[,,i+1]) / (n + k0)
+  cov_mat <- sig_u[,,i]/(n + k0)
+  mu_u[,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  #Sample mean of v  
+  mean_vec <- rowSums(V[,,i+1]) / (p + k0)
+  cov_mat <- sig_v[,,i]/(p + k0)
+  mu_v[,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  #Sample Sigma of u
+  nu <- n + p + 1
+  lambda <- k0  * as.matrix(mu_u[,i+1]) %*% t(as.matrix(mu_u[,i+1])) + diag(1, nrow = K, ncol = K ) + (U[,,i+1] - mu_u[,i+1]) %*% t(U[,,i+1] - mu_u[,i+1])
+  sig_u[,,i+1] <- rinvwishart(1, nu = nu, Omega = lambda)
+  #Sample Sigma of v
+  nu <- p + p + 2
+  lambda <- k0  * as.matrix(mu_v[,i+1]) %*% t(as.matrix(mu_v[,i+1])) + diag(1, nrow = K, ncol = K ) + (V[,,i+1] - mu_v[,i+1]) %*% t(V[,,i+1] - mu_v[,i+1])
+  sig_v[,,i+1] <- rinvwishart(1, nu = nu, Omega = lambda)
+}
+
+```
+```{r}
+Vm_2 <- round(t(apply(V, c(1,2), mean)),4)
+movie_id <- paste("Movie",1:p)
+K_names <- 1:K
+rownames(Vm_2) <- movie_id
+colnames(Vm_2) <- K_names
+knitr::kable(Vm_2, caption = "V Matrix", assign = 'c')
+```
+
+
+## K = 4
+```{r}
+#Initialize
+X <- read.csv(here::here("SimMovieRating.csv"))
+X <- as.matrix(X)
+K <- 4
+k0 <- 2
+iter <- 10000
+n <- 100
+p <- 30
+
+#Initialize UV
+U <- array(NA, dim = c(K,n,iter))
+V <- array(NA, dim = c(K,p,iter))
+U[,,1] <- 1
+V[,,1] <- 1
+#Initialize mean of u and v
+mu_u <- matrix(NA, nrow = K, ncol = iter )
+mu_v <- matrix(NA, nrow = K, ncol = iter )
+mu_u[,1] <- 1
+mu_v[,1] <- 1
+#Initialize covariance matrix
+sig_u <- array(NA, dim = c(K,K,iter))
+sig_v <- array(NA, dim = c(K,K,iter))
+sig_u[,,1] <- diag(1, nrow = K)
+sig_v[,,1] <- diag(1, nrow = K)
+```
+
+
+```{r}
+#Gibbs Sampler
+i <- 1
+for (i in 1:(iter-1)) {
+  #Sample Ui
+  for (m in 1:n) {
+    mean_vec <- solve(V[,,i]%*%t(V[,,i]) + solve(sig_u[,,i])) %*%(V[,,i] %*% X[m,] + solve(sig_u[,,i]) %*% as.matrix(mu_u[,i]))
+    cov_mat <-  solve(V[,,i]%*%t(V[,,i]) + solve(sig_u[,,i]))
+    U[,m,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  }
+  #Sample Vi
+  for (l in 1:p) {
+    mean_vec <- solve(U[,,i+1]%*%t(U[,,i+1]) + solve(sig_v[,,i])) %*%(U[,,i+1] %*% X[,l] + solve(sig_v[,,i]) %*% as.matrix(mu_v[,i]))
+    cov_mat <-  solve(U[,,i+1]%*%t(U[,,i+1]) + solve(sig_v[,,i]))
+    V[,l,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  }
+  #Sample mean of u
+  mean_vec <- rowSums(U[,,i+1]) / (n + k0)
+  cov_mat <- sig_u[,,i]/(n + k0)
+  mu_u[,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  #Sample mean of v  
+  mean_vec <- rowSums(V[,,i+1]) / (n + k0)
+  cov_mat <- sig_v[,,i]/(p + k0)
+  mu_v[,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  #Sample Sigma of u
+  nu <- n + p + 1
+  lambda <- k0  * as.matrix(mu_u[,i+1]) %*% t(as.matrix(mu_u[,i+1])) + diag(1, nrow = K, ncol = K ) + (U[,,i+1] - mu_u[,i+1]) %*% t(U[,,i+1] - mu_u[,i+1])
+  sig_u[,,i+1] <- rinvwishart(1, nu = nu, Omega = lambda)
+  #Sample Sigma of v
+  nu <- p + p + 2
+  lambda <- k0  * as.matrix(mu_v[,i+1]) %*% t(as.matrix(mu_v[,i+1])) + diag(1, nrow = K, ncol = K ) + (V[,,i+1] - mu_v[,i+1]) %*% t(V[,,i+1] - mu_v[,i+1])
+  sig_v[,,i+1] <- rinvwishart(1, nu = nu, Omega = lambda)
+}
+
+```
+```{r}
+Vm_4 <- round(t(apply(V, c(1,2), mean)),4)
+movie_id <- paste("Movie",1:p)
+K_names <- 1:K
+rownames(Vm_4) <- movie_id
+colnames(Vm_4) <- K_names
+knitr::kable(Vm_4, caption = "V Matrix", assign = 'c')
+```
+
+## K = 6
+```{r}
+#Initialize
+X <- read.csv(here::here("SimMovieRating.csv"))
+X <- as.matrix(X)
+K <- 6
+k0 <- 2
+iter <- 10000
+n <- 100
+p <- 30
+
+#Initialize UV
+U <- array(NA, dim = c(K,n,iter))
+V <- array(NA, dim = c(K,p,iter))
+U[,,1] <- 1
+V[,,1] <- 1
+#Initialize mean of u and v
+mu_u <- matrix(NA, nrow = K, ncol = iter )
+mu_v <- matrix(NA, nrow = K, ncol = iter )
+mu_u[,1] <- 1
+mu_v[,1] <- 1
+#Initialize covariance matrix
+sig_u <- array(NA, dim = c(K,K,iter))
+sig_v <- array(NA, dim = c(K,K,iter))
+sig_u[,,1] <- diag(1, nrow = K)
+sig_v[,,1] <- diag(1, nrow = K)
+```
+
+
+```{r}
+#Gibbs Sampler
+i <- 1
+for (i in 1:(iter-1)) {
+  #Sample Ui
+  for (m in 1:n) {
+    mean_vec <- solve(V[,,i]%*%t(V[,,i]) + solve(sig_u[,,i])) %*%(V[,,i] %*% X[m,] + solve(sig_u[,,i]) %*% as.matrix(mu_u[,i]))
+    cov_mat <-  solve(V[,,i]%*%t(V[,,i]) + solve(sig_u[,,i]))
+    U[,m,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  }
+  #Sample Vi
+  for (l in 1:p) {
+    mean_vec <- solve(U[,,i+1]%*%t(U[,,i+1]) + solve(sig_v[,,i])) %*%(U[,,i+1] %*% X[,l] + solve(sig_v[,,i]) %*% as.matrix(mu_v[,i]))
+    cov_mat <-  solve(U[,,i+1]%*%t(U[,,i+1]) + solve(sig_v[,,i]))
+    V[,l,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  }
+  #Sample mean of u
+  mean_vec <- rowSums(U[,,i+1]) / (n + k0)
+  cov_mat <- sig_u[,,i]/(n + k0)
+  mu_u[,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  #Sample mean of v  
+  mean_vec <- rowSums(V[,,i+1]) / (n + k0)
+  cov_mat <- sig_v[,,i]/(p + k0)
+  mu_v[,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  #Sample Sigma of u
+  nu <- n + p + 1
+  lambda <- k0  * as.matrix(mu_u[,i+1]) %*% t(as.matrix(mu_u[,i+1])) + diag(1, nrow = K, ncol = K ) + (U[,,i+1] - mu_u[,i+1]) %*% t(U[,,i+1] - mu_u[,i+1])
+  sig_u[,,i+1] <- rinvwishart(1, nu = nu, Omega = lambda)
+  #Sample Sigma of v
+  nu <- p + p + 2
+  lambda <- k0  * as.matrix(mu_v[,i+1]) %*% t(as.matrix(mu_v[,i+1])) + diag(1, nrow = K, ncol = K ) + (V[,,i+1] - mu_v[,i+1]) %*% t(V[,,i+1] - mu_v[,i+1])
+  sig_v[,,i+1] <- rinvwishart(1, nu = nu, Omega = lambda)
+}
+
+```
+```{r}
+Vm_6 <- round(t(apply(V, c(1,2), mean)),4)
+movie_id <- paste("Movie",1:p)
+K_names <- 1:K
+rownames(Vm_6) <- movie_id
+colnames(Vm_6) <- K_names
+knitr::kable(Vm_6, caption = "V Matrix", assign = 'c')
+```
+
+
+## K = 8
+```{r}
+#Initialize
+X <- read.csv(here::here("SimMovieRating.csv"))
+X <- as.matrix(X)
+K <- 8
+k0 <- 2
+iter <- 10000
+n <- 100
+p <- 30
+
+#Initialize UV
+U <- array(NA, dim = c(K,n,iter))
+V <- array(NA, dim = c(K,p,iter))
+U[,,1] <- 1
+V[,,1] <- 1
+#Initialize mean of u and v
+mu_u <- matrix(NA, nrow = K, ncol = iter )
+mu_v <- matrix(NA, nrow = K, ncol = iter )
+mu_u[,1] <- 1
+mu_v[,1] <- 1
+#Initialize covariance matrix
+sig_u <- array(NA, dim = c(K,K,iter))
+sig_v <- array(NA, dim = c(K,K,iter))
+sig_u[,,1] <- diag(1, nrow = K)
+sig_v[,,1] <- diag(1, nrow = K)
+```
+
+
+```{r}
+#Gibbs Sampler
+i <- 1
+for (i in 1:(iter-1)) {
+  #Sample Ui
+  for (m in 1:n) {
+    mean_vec <- solve(V[,,i]%*%t(V[,,i]) + solve(sig_u[,,i])) %*%(V[,,i] %*% X[m,] + solve(sig_u[,,i]) %*% as.matrix(mu_u[,i]))
+    cov_mat <-  solve(V[,,i]%*%t(V[,,i]) + solve(sig_u[,,i]))
+    U[,m,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  }
+  #Sample Vi
+  for (l in 1:p) {
+    mean_vec <- solve(U[,,i+1]%*%t(U[,,i+1]) + solve(sig_v[,,i])) %*%(U[,,i+1] %*% X[,l] + solve(sig_v[,,i]) %*% as.matrix(mu_v[,i]))
+    cov_mat <-  solve(U[,,i+1]%*%t(U[,,i+1]) + solve(sig_v[,,i]))
+    V[,l,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  }
+  #Sample mean of u
+  mean_vec <- rowSums(U[,,i+1]) / (n + k0)
+  cov_mat <- sig_u[,,i]/(n + k0)
+  mu_u[,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  #Sample mean of v  
+  mean_vec <- rowSums(V[,,i+1]) / (n + k0)
+  cov_mat <- sig_v[,,i]/(p + k0)
+  mu_v[,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  #Sample Sigma of u
+  nu <- n + p + 1
+  lambda <- k0  * as.matrix(mu_u[,i+1]) %*% t(as.matrix(mu_u[,i+1])) + diag(1, nrow = K, ncol = K ) + (U[,,i+1] - mu_u[,i+1]) %*% t(U[,,i+1] - mu_u[,i+1])
+  sig_u[,,i+1] <- rinvwishart(1, nu = nu, Omega = lambda)
+  #Sample Sigma of v
+  nu <- p + p + 2
+  lambda <- k0  * as.matrix(mu_v[,i+1]) %*% t(as.matrix(mu_v[,i+1])) + diag(1, nrow = K, ncol = K ) + (V[,,i+1] - mu_v[,i+1]) %*% t(V[,,i+1] - mu_v[,i+1])
+  sig_v[,,i+1] <- rinvwishart(1, nu = nu, Omega = lambda)
+}
+
+```
+```{r}
+Vm_8 <- round(t(apply(V, c(1,2), mean)),4)
+movie_id <- paste("Movie",1:p)
+K_names <- 1:K
+rownames(Vm_8) <- movie_id
+colnames(Vm_8) <- K_names
+knitr::kable(Vm_8, caption = "V Matrix", assign = 'c')
+```
+
+
+## K = 10
+```{r}
+#Initialize
+X <- read.csv(here::here("SimMovieRating.csv"))
+X <- as.matrix(X)
+K <- 10
+k0 <- 2
+iter <- 10000
+n <- 100
+p <- 30
+
+#Initialize UV
+U <- array(NA, dim = c(K,n,iter))
+V <- array(NA, dim = c(K,p,iter))
+U[,,1] <- 1
+V[,,1] <- 1
+#Initialize mean of u and v
+mu_u <- matrix(NA, nrow = K, ncol = iter )
+mu_v <- matrix(NA, nrow = K, ncol = iter )
+mu_u[,1] <- 1
+mu_v[,1] <- 1
+#Initialize covariance matrix
+sig_u <- array(NA, dim = c(K,K,iter))
+sig_v <- array(NA, dim = c(K,K,iter))
+sig_u[,,1] <- diag(1, nrow = K)
+sig_v[,,1] <- diag(1, nrow = K)
+```
+
+
+```{r}
+#Gibbs Sampler
+i <- 1
+for (i in 1:(iter-1)) {
+#Sample Ui
+  for (m in 1:n) {
+    mean_vec <- solve(V[,,i]%*%t(V[,,i]) + solve(sig_u[,,i])) %*%(V[,,i] %*% X[m,] + solve(sig_u[,,i]) %*% as.matrix(mu_u[,i]))
+    cov_mat <-  solve(V[,,i]%*%t(V[,,i]) + solve(sig_u[,,i]))
+    U[,m,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  }
+  #Sample Vi
+  for (l in 1:p) {
+    mean_vec <- solve(U[,,i+1]%*%t(U[,,i+1]) + solve(sig_v[,,i])) %*%(U[,,i+1] %*% X[,l] + solve(sig_v[,,i]) %*% as.matrix(mu_v[,i]))
+    cov_mat <-  solve(U[,,i+1]%*%t(U[,,i+1]) + solve(sig_v[,,i]))
+    V[,l,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  }
+  #Sample mean of u
+  mean_vec <- rowSums(U[,,i+1]) / (n + k0)
+  cov_mat <- sig_u[,,i]/(n + k0)
+  mu_u[,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  #Sample mean of v  
+  mean_vec <- rowSums(V[,,i+1]) / (n + k0)
+  cov_mat <- sig_v[,,i]/(p + k0)
+  mu_v[,i+1] <- rmvnorm(1, mean = mean_vec, sigma = cov_mat)
+  #Sample Sigma of u
+  nu <- n + p + 1
+  lambda <- k0  * as.matrix(mu_u[,i+1]) %*% t(as.matrix(mu_u[,i+1])) + diag(1, nrow = K, ncol = K ) + (U[,,i+1] - mu_u[,i+1]) %*% t(U[,,i+1] - mu_u[,i+1])
+  sig_u[,,i+1] <- rinvwishart(1, nu = nu, Omega = lambda)
+  #Sample Sigma of v
+  nu <- p + p + 2
+  lambda <- k0  * as.matrix(mu_v[,i+1]) %*% t(as.matrix(mu_v[,i+1])) + diag(1, nrow = K, ncol = K ) + (V[,,i+1] - mu_v[,i+1]) %*% t(V[,,i+1] - mu_v[,i+1])
+  sig_v[,,i+1] <- rinvwishart(1, nu = nu, Omega = lambda)
+}
+
+```
+```{r}
+Vm_10 <- round(t(apply(V, c(1,2), mean)),4)
+movie_id <- paste("Movie",1:p)
+K_names <- 1:K
+rownames(Vm_10) <- movie_id
+colnames(Vm_10) <- K_names
+knitr::kable(Vm_10, caption = "V Matrix", assign = 'c')
+```
+
+# Question 6: Poisson-Gamma Distribution
+```{r}
+ti <- c(94.3, 15.7, 62.9, 126, 5.24, 31.4, 1.05, 1.05, 2.1, 10.5)
+yi <- c(5, 1, 5, 14, 3, 19, 1, 1, 4, 22)
+iter <- 10000
+a <- 0.1
+b <- 10
+n <- length(ti)
+rw_step <- 0.5
+alpha_pos <- rep(NA, iter)
+beta_pos <- rep(NA, iter)
+alpha_pos[1] <- 10
+beta_pos[1] <- 10
+theta_pos <- matrix(NA, nrow = length(ti), ncol = iter)
+theta_pos[,1] <- 1
+
+p_log <- function(t, beta, theta){
+  out <- prod(theta)^(exp(t)-1) * exp(t - exp(t)) * (beta^exp(t) / gamma(exp(t)))^n
+    return(out)
+}
+  rg <- Vectorize(rgamma)
+```
+
+```{r}
+for (i in 1:(iter-1)) {
+  # Generate beta
+  beta_pos[i + 1] <- rgamma(1, shape = a + alpha_pos[i]*n, rate = b + sum(theta_pos[,i]))
+  #Generate alpha
+  alpha_new_log <- rnorm(1, mean = log(alpha_pos[i]), sd = rw_step)
+  p <- p_log(t = alpha_new_log, beta = beta_pos[i+1], theta = theta_pos[,i])/p_log(t = log(alpha_pos[i]), beta = beta_pos[i+1], theta = theta_pos[,i])
+  index <- runif(1)
+  if(index <= p){
+   alpha_pos[i+1] <- exp(alpha_new_log) 
+  }else{alpha_pos[i+1] <- alpha_pos[i]}
+  #Generate theta
+  param_alpha <- alpha_pos[i+1] + yi
+  param_beta <- beta_pos[i+1] +ti
+  theta_pos[,i+1] <- unlist(rg(n = rep(1, length(yi)), shape = param_alpha, rate = param_beta  ) )
+  
+}
+
+
+```
+
+```{r}
+thin <- seq(from = 2000, to = 10000, by = 8)
+par(mfrow = c(1,2))
+hist(alpha_pos[thin], main = "Marginal Distribution of Alpha", xlab = "Alpha", col = 'lightblue', probability = TRUE)
+hist(beta_pos[thin], main = "Marginal Distribution of Beta", xlab = "Beta", col = 'lightpink' , probability = TRUE)
+
+```
+```{r}
+plot(x =alpha_pos[thin], y = beta_pos[thin], xlab = "Alpha", ylab = "Beta", pch = 19 )
+```
+
+## MH to sample Marginal Distribution
+
+```{r}
+log_alpha <- rep(NA, iter)
+log_beta <- rep(NA, iter)
+log_alpha[1] <- 1
+log_beta[1] <- 1
+sig <- diag(0.1, 2,2)
+pos_den <- function(ta, tb){
+  
+  out <- exp(-exp(ta)-b*exp(tb)) * exp(tb)^(n*exp(ta)+a-1)/ prod(  ( exp(tb) + ti)^(exp(ta)+yi)  ) * prod(gamma(exp(ta)+yi)) / gamma(exp(ta))^n * exp(ta + tb)
+  return(out)
+  
+}
+
+```
+
+```{r}
+i <- 1
+for (i in 1:(iter-1)) {
+  newpair <- rmvnorm(1, mean = c(log_alpha[i], log_beta[i]), sigma = sig)
+  p <- pos_den(ta = newpair[1], tb = newpair[2]) / pos_den(ta = log_alpha[i], tb = log_beta[i])
+  index <- runif(1)
+  if(index <= p){
+    log_alpha[i+1] <- newpair[1]
+    log_beta[i+1] <- newpair[2]
+  }else{
+    log_alpha[i+1] <- log_alpha[i]
+    log_beta[i+1] <- log_beta[i]
+  }
+}
+```
+```{r}
+alpha_margin <- exp(log_alpha[thin])
+beta_margin <- exp(log_beta[thin])
+
+
+par(mfrow = c(1,2))
+hist(alpha_margin, main = "Marginal Distribution of Alpha", xlab = "Alpha", col = 'lightblue', probability = TRUE)
+hist(beta_margin, main = "Marginal Distribution of Beta", xlab = "Beta", col = 'lightpink' , probability = TRUE)
+
+
+```
+
+```{r}
+plot(x =alpha_margin, y = beta_margin, xlab = "Alpha", ylab = "Beta", pch = 19 )
+```
+
+
+

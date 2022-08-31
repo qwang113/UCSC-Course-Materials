@@ -1,0 +1,844 @@
+---
+geometry: "margin=0.8in"
+output: 
+  pdf_document:
+    latex_engine: xelatex   
+documentclass: asaproc
+header-includes:
+    - \usepackage{setspace}
+    - \singlespacing
+    - \usepackage{bm}
+    - \usepackage{graphics}
+---
+
+```{r global_options, include=FALSE}
+    rm(list = ls())
+    library(knitr)
+    library(glmnet)
+    library(plotmo)
+    library(rstan)
+    library(bayesplot)
+    library(loo)
+    knitr::opts_chunk$set(fig.width=6, 
+    fig.height=4.5, fig.path='./Figs/',echo=FALSE,  warning=FALSE, message=FALSE)
+    
+    if(is_latex_output()) {
+    plot_default <- knit_hooks$get("plot")
+    knit_hooks$set(plot = function(x, options) { 
+    x <- c(plot_default(x, options), "\\vspace{1pt}")
+  })
+}
+    
+
+```
+\title{Factors Affecting COVID-19 Cases Proportion in a Country }
+
+\author{Qi Wang$^1$\\
+Department of Statistics, University of California, Santa Cruz$^1$\\
+}
+ 
+\maketitle
+
+
+\section*{Abstract}
+
+In this report, we are using a Bayesian regression approach to explore what is the most significant factors affecting the logarithm of the proportion of covid cases in 38 countries. Since there are tons of covariates, to begin with, a Lasso regression is carried out for variable selection. After selecting the variables, both random effect model considering the continent factor and common Bayesian regression model excluding the continent factor are considered. By WAIC, elppd and DIC, the random effect model performs better. Furthermore, it seems United States is an outlier for this dataset, after deleting the United States, with random effect model, it predicts better with smaller RSS than deleting another country, Sri Lanka. Finally, we got the conclusion that two most significant factors are hospital beds proportion and humanity development index, which has a positive correlation with the proportion of covid cases in each country.
+
+
+
+\begin{keywords}
+Random Effect Model, Bayesian Model Selection, Lasso Regression, Hierarchical Model
+\end{keywords}
+
+
+\section*{1.Background and Data Overview}
+
+We are going to study the relationship between proportion of total covid cases and other indexes among 38 different countries. The dataset  contains information about COVID-19 case, death, testing,and vaccination information as of 1/1/2022 for 38 countries. We want to explore any association between the proportion of total cases and the country-specific covariates. Our complete COVID-19 dataset is a collection of the COVID-19 data maintained by Our World in Data. Furthermore, part of the data also comes from the COVID-19 Data Repository by the Center for Systems Science and Engineering (CSSE) at Johns Hopkins University (JHU). We have 38 data and 26 variables(including the response variable) in total. Most of the variables describe one relevant index about covid, like the vaccine coverage rate, total case of covid and so on. Here, we take the proportion of cases in each country as response variable, and others to be the possible covariates to explore the inner relationship between them in a Bayesian regression way.
+```{r las1, fig.align='center', fig.cap="Lasso Regression MSE Trend with Lambda",fig.height= 5 }
+set.seed(0)
+dat<- read.csv(here::here("covid.csv"))
+y <- log(dat$total_cases_per_million/1e6)
+cv_Lasso <- cv.glmnet(x =  data.matrix( dat[,-c(1,2,which(colnames(dat) == "total_cases_per_million"))]), y = y, alpha = 1)
+lambda_best <- cv_Lasso$lambda.min
+model_Lasso <- glmnet(x =  data.matrix( dat[,-c(1,2,which(colnames(dat) == "total_cases_per_million"))]), y = y, alpha = 1)
+plot(cv_Lasso)
+```
+\section*{2.Exploratory Data Analysis}
+
+Since there are too many covariates comparing with the sample size, before fitting the Bayesian regression, a variable selection process is necessary. I will use Lasso regression to decide which variables will be included later in the Bayesian part. To get the best penalizing constant, a cross validation process is considered. Furthermore, the relationship between MSE and the penalizing constant and the coefficient trace plot in Lasso and ridge regression are in figure \ref{fig:las1}, \ref{fig:las2}. After checking the variables selected by Lasso model, as in \ref{tab:las_r} we can see the humanity development, positive rate, hospital beds proportion diabetes prevalence and people who aged over 70 are five most significant variables both in Lasso model and ridge model. Therefore, I am going to use these five variables in the following Bayesian part.
+
+
+
+
+```{r las2, fig.align='center', fig.cap="5 Variables Selected by Lasso"}
+plot_glmnet(model_Lasso, label = 0) 
+```
+
+
+```{r las_r}
+model_las_best <- glmnet(x =  data.matrix( dat[,-c(1,which(colnames(dat) == "total_cases_per_million"))]), y = y, alpha = 1, lambda = cv_Lasso$lambda.min)
+param <- matrix(coef(model_las_best)[which(coef(model_las_best) != 0)], nrow = 1)
+colnames(param) <- rownames(coef(model_las_best))[which(coef(model_las_best) != 0)]
+kable( round(t(param),3), align = 'c', format = "latex", caption = "Lasso Regression Result")
+```
+
+
+
+
+
+\section*{3. Bayesian Regression}
+
+\subsection*{3.1 Ignorning Continent Factor Case}
+
+\subsubsection*{3.1.1 Model Setting}
+In this way, we simply ignore the continent affect, therefore, we set a Bayesian regression model with following settings:
+
+$$Y_i\sim^{iid} TruncN(\beta_0+ X_i\beta_{others}), \sigma^2), Y_i<0$$
+However, this model may not be a good choice since the posterior for $\beta$ would not be in closed form. I will use a simpler one:
+
+$$Y_i\sim^{iid} N(\beta_0+ X_i\beta_{others}), \sigma^2)$$
+in which, $X_i$ includes the total cases, tests per case, total boosters per hundred, male smokers, hospital beds per thousand and human development index of the $i^{th}$ country. And we put a prior on all the $\beta$ and $\sigma^2$ as follows:
+
+$$\pi(\beta_0,\beta_{others},\sigma^2) \propto \frac{1}{\sigma^2}$$
+```{r bayes_all_tr, fig.align='center', fig.cap='Posterior(Truncated Y and Continent Excluded)', message=FALSE, warning=FALSE,results="hide"}
+
+m_basic <-
+  
+  "
+data{
+
+int n;
+int p;
+vector[n] y;
+vector[n] test_case;
+vector[n] booster_prop;
+vector[n] male_smoke;
+vector[n] hospital_bed;
+vector[n] hum_develop;
+}
+
+parameters{
+
+real beta_int;
+real<lower=0> sigma;
+real beta_test_c;
+real beta_boost;
+real beta_m_smoke;
+real beta_hospital;
+real beta_hum_dvl;
+}
+
+model{
+
+
+
+for(i in 1:n){
+y[i] ~ normal( beta_int + hospital_bed[i]*beta_hospital + hum_develop[i]*beta_hum_dvl + test_case[i]*beta_test_c + booster_prop[i]*beta_boost + male_smoke[i]*beta_m_smoke, sigma) T[,0] ;
+}
+
+}
+
+
+"
+
+basic_data <- list(
+  
+  test_case = dat$tests_per_case,
+  booster_prop = dat$total_boosters_per_hundred,
+  male_smoke = dat$male_smokers,
+  hospital_bed = dat$hospital_beds_per_thousand,
+  hum_develop = dat$human_development_index,
+  y = y,
+  n = nrow(dat),
+  p = length(param)-1
+  
+)
+
+fit.stan.t <- stan(model_code = m_basic, data = basic_data, iter = 20000, warmup = 5000)
+mcmc_dens(fit.stan.t)
+```
+
+\subsubsection*{3.1.2 Posterior Distribution}
+
+After using the Gibbs sampler, we got the posterior distribution of all the slope, intercept and noise as in figure \ref{fig:bayes_all_tr} in the truncated case. The distribution of $\beta$ seems very strange, and also the $\sigma^2$ concentrates around a big value, which means that our model is not that accurate. The not truncated case instead has the posterior distribution in figure \ref{fig:bayes_all_nt}. From the data we know all $y$'s are concentrated around -2 to -1, according to the posterior of $\sigma^2$, by empirical rule, the probability of getting a positive y based on our regression coefficient is small, so we actually don't need the truncated distribution assumption for $y$. Instead, we use a normal distribution, which can also provide us the conjugacy.
+
+We can see that the tests per case(inverse of positive rate) has a negative effect on the population case proportion, but booster proportions, male smokers, hospital beds proportion and human development index is making the case proportion larger. However, the result seems very counter intuitive. Going back to the data, the continent could also be a very important factor because covid is contagious, so countries from the same continent may have similar trend, which will be discussed in the next section. 
+
+
+
+
+```{r bayes_all_nt, fig.align='center', fig.cap='Posterior(Non-truncated Y and Continent Excluded)', message=FALSE, warning=FALSE,results="hide"}
+
+m_basic <-
+  
+  "
+data{
+
+int n;
+int p;
+vector[n] y;
+vector[n] test_case;
+vector[n] booster_prop;
+vector[n] male_smoke;
+vector[n] hospital_bed;
+vector[n] hum_develop;
+}
+
+parameters{
+
+real beta_int;
+real<lower=0> sigma;
+real beta_test_c;
+real beta_boost;
+real beta_m_smoke;
+real beta_hospital;
+real beta_hum_dvl;
+}
+
+model{
+
+
+
+for(i in 1:n){
+y[i] ~ normal( beta_int + hospital_bed[i]*beta_hospital + hum_develop[i]*beta_hum_dvl + test_case[i]*beta_test_c + booster_prop[i]*beta_boost + male_smoke[i]*beta_m_smoke, sigma) ;
+}
+
+}
+generated quantities{
+
+vector[n] log_lik;
+real yhat;
+
+for(i in 1:n){
+yhat = beta_int + hospital_bed[i]*beta_hospital + hum_develop[i]*beta_hum_dvl + test_case[i]*beta_test_c + booster_prop[i]*beta_boost + male_smoke[i]*beta_m_smoke;
+log_lik[i] = normal_lpdf(y[i] |  yhat, sigma) ;
+
+}
+
+}
+
+
+"
+
+basic_data <- list(
+  
+  test_case = dat$tests_per_case,
+  booster_prop = dat$total_boosters_per_hundred,
+  male_smoke = dat$male_smokers,
+  hospital_bed = dat$hospital_beds_per_thousand,
+  hum_develop = dat$human_development_index,
+  y = y,
+  n = nrow(dat),
+  p = length(param)-1
+  
+)
+
+fit.stan_1 <- stan(model_code = m_basic, data = basic_data, iter = 20000, warmup = 5000)
+mcmc_dens(fit.stan_1, pars = c("beta_int", "beta_test_c","beta_boost","beta_m_smoke","beta_hospital","beta_hum_dvl","sigma"))
+```
+
+
+\subsection*{3.2 Including Continent Factor Case}
+
+\subsubsection*{3.2.1 Model Setting}
+
+In this case, since continent is a categorical model, I am thinking of using a random effect model. First, there is a trend that countries on the same continent will have the similar intercept but not exactly the same intercept among them. We can regard each continent as a group and each country is the group member in the group, so it's reasonable that each group has different intercept. Furthermore, each continent also seems to have their own slope because countries within the same continent tends to work together or take similar policies to fight against the covid. Therefore, our model could be expressed as:
+
+$$Y_{ij}\sim^{iid} N(\beta_{0i}+ X_{ij}\beta_{others,i} ), \sigma^2)$$
+$$\beta_{0i}\sim N(\mu_0,\tau_0^2)$$
+$$\beta_{ji}\sim N(\mu_j,\tau_j^2)$$
+$$\pi(\mu_k) \propto 1, \ \pi(\tau_k)\sim \frac{1}{\tau_k^2}, \ k \in \{0, 1,2,... \}$$
+\subsubsection*{3.2.2 Posterior Distribution}
+
+I simply did not add the interaction term between continent and other variables in my random effect model because the interaction effect between a categorical variable and a continuous variable can be added up together with the fixed effect into the random effect. Therefore, in this setting, I used both random intercept and random slope. The posterior distribution of all $\mu_i$'s are as in figure \ref{fig:Bay_l}. They are tests per case, total boosters per hundred, male smokers, hospital beds per thousand, human development index and intercept from upside down.
+
+
+
+```{r}
+order_dat <- dat[order(dat$continent),]
+ni <- table(dat$continent)
+y_order <- log(order_dat$total_cases_per_million/1e6)
+x_tpc <-  order_dat$tests_per_case
+x_tbp <-  order_dat$total_boosters_per_hundred
+x_msp <-  order_dat$male_smokers
+x_hbp <-  order_dat$hospital_beds_per_thousand
+x_hdi <-  order_dat$human_development_index
+order_dat$continent[which(order_dat$continent=="Africa")] <- 1
+order_dat$continent[which(order_dat$continent=="Asia")] <- 2
+order_dat$continent[which(order_dat$continent=="Europe")] <- 3
+order_dat$continent[which(order_dat$continent=="North America")] <- 4
+order_dat$continent[which(order_dat$continent=="South America")] <- 5
+```
+
+
+```{r Bay_l, fig.align='center', fig.cap="Random Effect Mean Posterior Distribution",  message=FALSE, warning=FALSE,results="hide"}
+set.seed(0)
+m_conti <- "
+
+data{
+
+int n;
+int p;
+int c;
+vector[n] y_order;
+vector[n] x_tpc;
+vector[n] x_tbp;
+vector[n] x_msp;
+vector[n] x_hbp;
+vector[n] x_hdi;
+int continent[n];
+
+
+}
+
+parameters{
+
+real<lower = 0> sigma;
+vector[c] beta_int;
+matrix[p,c] beta_others;
+
+real mu_int;
+vector[p] mu_others;
+
+real<lower = 0> tau_int;
+vector<lower = 0>[p] tau_others;
+
+}
+
+
+
+
+
+model{
+
+
+beta_int ~ normal(mu_int, tau_int);
+
+
+for(i in 1:p){
+  for(j in 1:c){
+    beta_others[i,j] ~ normal(mu_others[i], tau_others[i]);
+  }
+}
+
+
+for(i in 1:n){
+
+y_order[i] ~ normal(beta_int[continent[i]] + x_tpc[i]*beta_others[1,continent[i]] + x_tbp[i]*beta_others[2,continent[i]] + x_msp[i]*beta_others[3,continent[i]] + x_hbp[i]*beta_others[4,continent[i]] + x_hdi[i]*beta_others[5,continent[i]], sigma);
+
+}
+
+}
+generated quantities{
+
+vector[n] log_lik;
+real yhat;
+
+for(i in 1:n){
+yhat = beta_int[continent[i]] + x_tpc[i]*beta_others[1,continent[i]] + x_tbp[i]*beta_others[2,continent[i]] + x_msp[i]*beta_others[3,continent[i]] + x_hbp[i]*beta_others[4,continent[i]] + x_hdi[i]*beta_others[5,continent[i]];
+log_lik[i] = normal_lpdf(y_order[i] | yhat, sigma) ;
+
+
+}
+
+  
+}
+
+
+"
+
+conti_data <- list(
+  
+  y_order = y_order,
+  x_tpc = x_tpc,
+  x_tbp = x_tbp,
+  x_msp = x_msp,
+  x_hbp = x_hbp,
+  x_hdi = x_hdi,
+  continent = as.integer(order_dat$continent),
+  n = nrow(dat),
+  c = length(table(dat$continent)),
+  p = 5
+  
+)
+  
+
+fit.stan_2 <- stan(model_code = m_conti, data = conti_data, iter = 20000, warmup = 5000, chains = 4)
+plot(fit.stan_2 ,pars = c("mu_others","mu_int"))
+```
+
+\section*{4. Model Comparison and Outliers Arrangement}
+
+
+\subsection*{4.1 Model Comparison with DIC, WAIC and elppd}
+
+Since we have two models for now, we will need the DIC(Deviance Information Criterion), WAIC(Watanabe-Akaike Information Criterion) and elppd(Expected log pointwise predictive density).
+$$DIC=-2log(y|\hat{\theta})+2p_{DIC}$$
+$$p_{DIC} = 2log(p(y|\hat{\theta}))-\frac{1}{S}\sum_{s=1}^Slog(p(y|\theta^s))$$
+$$WAIC = -2log(p(y|\hat{\theta}))+2p_{WAIC}$$
+$$p_{WAIC}=\sum_{i=1}^nvar_{\theta|y}(log(p(y_i|\theta^s)))$$
+Since we are using a normal likelihood, the mode is just the mean, the distribution of the log likelihood of all iterations are shown in figure \ref{fig:pos_lik}. After calculating the three criteria, as shown in table \ref{tab:md_com}, we can see that the random effect model including the continent is better in WAIC, elppd and DIC. Therefore, in the later part of regression without outliers, I will use the random effect model,
+```{r md_com, warning=FALSE}
+continent <- as.integer(order_dat$continent)
+
+test_case = dat$tests_per_case
+booster_prop = dat$total_boosters_per_hundred
+male_smoke = dat$male_smokers
+hospital_bed = dat$hospital_beds_per_thousand
+hum_develop = dat$human_development_index
+
+
+
+
+#WAIC and ELPPD
+L1 <- loo::extract_log_lik(fit.stan_1)
+WAIC_1 <-  loo::waic(L1)
+L2 <- loo::extract_log_lik(fit.stan_2)
+WAIC_2 <-  loo::waic(L2)
+WAIC_all <- c(WAIC_1$waic, WAIC_2$waic)
+elppd_all <- c(WAIC_1$elpd_waic, WAIC_2$elpd_waic)
+
+#DIC
+LLH_1 <- function(beta_int, sig, beta_test_c, beta_boost, beta_m_smoke, beta_hospital, beta_hum_dvl){
+  yhat <- rep(NA, 38)  
+  for (i in 1:38) {
+    yhat[i] <- beta_int + hospital_bed[i]*beta_hospital + hum_develop[i]*beta_hum_dvl + test_case[i]*beta_test_c + booster_prop[i]*beta_boost + male_smoke[i]*beta_m_smoke
+    
+  }
+  out <- list(
+    log_like = sum(log(dnorm(y, mean = yhat, sd = sig))),
+    yhat = yhat
+  )
+  return(out)
+}
+
+pos_mean_1 <- summary(fit.stan_1)$summary[,1]
+pos_beta_int_1 <- pos_mean_1[1]
+pos_sig_1 <- pos_mean_1[2]
+pos_beta_test_c <- pos_mean_1[3]
+pos_beta_boost <- pos_mean_1[4]
+pos_beta_m_smoke <- pos_mean_1[5]
+pos_beta_hospital <- pos_mean_1[6]
+pos_beta_hum_dvl <- pos_mean_1[7]
+
+pos_like_1 <- LLH_1(beta_int=pos_beta_int_1, sig=pos_sig_1, beta_test_c=pos_beta_test_c, beta_boost=pos_beta_boost, beta_m_smoke=pos_beta_m_smoke, beta_hospital=pos_beta_hospital, beta_hum_dvl=pos_beta_hum_dvl)$log_like
+
+
+
+LLH_2 <- function(beta_int,beta_others,sig){
+  yhat <- rep(NA, 38)
+  for (i in 1:38) {
+    yhat[i] =  beta_int[continent[i]] + x_tpc[i]*beta_others[1,continent[i]] + x_tbp[i]*beta_others[2,continent[i]] + x_msp[i]*beta_others[3,continent[i]] + x_hbp[i]*beta_others[4,continent[i]] + x_hdi[i]*beta_others[5,continent[i]]
+  }
+
+  out <- list(
+    log_like = sum(log(dnorm(y_order, mean = yhat, sd = sig))),
+    yhat = yhat
+  )
+  
+  return(out)
+}
+
+pos_mean_2 <- summary(fit.stan_2)$summary[,1]
+pos_beta_int_2 <- pos_mean_2[2:6]
+pos_beta_others_2 <- matrix( pos_mean_2[7:31], nrow = 5, ncol = 5 , byrow = TRUE)
+pos_sig_2 <- pos_mean_2[1]
+
+pos_like_2 <- LLH_2(beta_int = pos_beta_int_2, beta_others = pos_beta_others_2, sig = pos_sig_2 )$log_like
+
+
+
+
+log_like_1 <- rowSums(L1)
+log_like_2 <- rowSums(L2)
+
+
+
+pos_like_mean_1 <- mean(log_like_1)
+pos_like_mean_2 <- mean(log_like_2)
+
+p_DIC_1 <- 2*(pos_like_1 - pos_like_mean_1) 
+p_DIC_2 <- 2*(pos_like_2 - pos_like_mean_2)
+
+DIC_1 <- -2*pos_like_1 + 2*p_DIC_1
+DIC_2 <- -2*pos_like_2 + 2*p_DIC_2
+
+DIC_all <- c(DIC_1, DIC_2)
+
+inf_all <- cbind(WAIC_all, elppd_all, DIC_all)
+rownames(inf_all) <- c("Excluding Continent","Including Continent")
+colnames(inf_all) <- c("WAIC", "elppd","DIC")
+kable(inf_all, format = "latex", align = 'c', caption = "DIC and WAIC Criteria Model Comparisons")
+```
+
+```{r pos_lik, warning=FALSE,fig.align='center', fig.cap="Log Likelihood Distribution of All Iterations"}
+par(mfrow = c(1,2))
+hist(log_like_1, xlab="log-likelihood", main = "Excluding Continent", probability = TRUE, col = "lightpink")
+hist(log_like_2, xlab="log-likelihood", main = "Including Continent", probability = TRUE, col = "lightblue")
+
+
+```
+
+\subsection*{4.2 Random Effect Model Predictive Performance without Certain Countries}
+
+\subsubsection*{4.2.1 Without United States}
+
+In this case, we simply delete United States from the dataset since it seems that it is an outlier and may have potential effect on the model. The posterior predictive distribution summary are shown in tables in the appendix for each country except for US. And the overall posterior predictive mean trend compared with the true data is shown in figure \ref{fig:pred_nous_prop} and \ref{fig:pred_nous_tot}. If we take predictive mean to be the predicted value, the residual sum squares as follows:
+$$RSS_{-US} = \sum_{i=1}^n (\hat{y_i}-y_i)^2=2.026995$$
+
+Furthermore, the specific prediction for United States is in figure \ref{fig:pred_us}. We can see the predictive distribution cannot predict so accurately because US is actually an outlier.
+
+```{r nous_tab, message=FALSE, warning=FALSE,results="hide" }
+order_dat_nous <- order_dat[-which(order_dat$location == "United States"),]
+
+ni <- table(dat$continent)
+y_order_nous <- log(order_dat_nous$total_cases_per_million/1e6)
+x_tpc <-  order_dat_nous$tests_per_case
+x_tbp <-  order_dat_nous$total_boosters_per_hundred
+x_msp <-  order_dat_nous$male_smokers
+x_hbp <-  order_dat_nous$hospital_beds_per_thousand
+x_hdi <-  order_dat_nous$human_development_index
+order_dat_nous$continent[which(order_dat_nous$continent=="Africa")] <- 1
+order_dat_nous$continent[which(order_dat_nous$continent=="Asia")] <- 2
+order_dat_nous$continent[which(order_dat_nous$continent=="Europe")] <- 3
+order_dat_nous$continent[which(order_dat_nous$continent=="North America")] <- 4
+order_dat_nous$continent[which(order_dat_nous$continent=="South America")] <- 5
+x_tpc_us <- dat$tests_per_case[which(dat$location=="United States")]
+x_tbp_us <- dat$total_boosters_per_hundred[which(dat$location=="United States")]
+x_msp_us <- dat$male_smokers[which(dat$location=="United States")]
+x_hbp_us <- dat$hospital_beds_per_thousand[which(dat$location=="United States")]
+x_hdi_us <- dat$human_development_index[which(dat$location=="United States")]
+set.seed(0)
+m_conti <- "
+
+data{
+
+int n;
+int p;
+int c;
+vector[n] y_order;
+vector[n] x_tpc;
+vector[n] x_tbp;
+vector[n] x_msp;
+vector[n] x_hbp;
+vector[n] x_hdi;
+real x_tpc_us;
+real x_tbp_us;
+real x_msp_us;
+real x_hbp_us;
+real x_hdi_us;
+
+int continent[n];
+
+
+}
+
+parameters{
+
+real<lower = 0> sigma;
+vector[c] beta_int;
+matrix[p,c] beta_others;
+
+real mu_int;
+vector[p] mu_others;
+
+real<lower = 0> tau_int;
+vector<lower = 0>[p] tau_others;
+
+}
+
+
+
+
+
+model{
+
+
+beta_int ~ normal(mu_int, tau_int);
+
+
+for(i in 1:p){
+  for(j in 1:c){
+    beta_others[i,j] ~ normal(mu_others[i], tau_others[i]);
+  }
+}
+
+
+for(i in 1:n){
+
+y_order[i] ~ normal(beta_int[continent[i]] + x_tpc[i]*beta_others[1,continent[i]] + x_tbp[i]*beta_others[2,continent[i]] + x_msp[i]*beta_others[3,continent[i]] + x_hbp[i]*beta_others[4,continent[i]] + x_hdi[i]*beta_others[5,continent[i]], sigma);
+
+}
+
+}
+generated quantities{
+
+vector[n] log_lik;
+vector[n] pred_y;
+real yhat;
+real yhat_us;
+real pred_us;
+
+
+for(i in 1:n){
+yhat = beta_int[continent[i]] + x_tpc[i]*beta_others[1,continent[i]] + x_tbp[i]*beta_others[2,continent[i]] + x_msp[i]*beta_others[3,continent[i]] + x_hbp[i]*beta_others[4,continent[i]] + x_hdi[i]*beta_others[5,continent[i]];
+log_lik[i] = normal_lpdf(y_order[i] | yhat, sigma) ;
+pred_y[i] = normal_rng(yhat, sigma);
+
+}
+
+yhat_us = beta_int[4] + x_tpc_us*beta_others[1,4] + x_tbp_us*beta_others[2,4] + x_msp_us*beta_others[3,4] + x_hbp_us*beta_others[4,4] + x_hdi_us*beta_others[5,4];
+pred_us = normal_rng(yhat_us, sigma);
+  
+}
+
+
+"
+
+conti_data <- list(
+  
+  y_order = y_order_nous,
+  x_tpc = x_tpc,
+  x_tbp = x_tbp,
+  x_msp = x_msp,
+  x_hbp = x_hbp,
+  x_hdi = x_hdi,
+  x_tpc_us = x_tpc_us,
+  x_tbp_us = x_tbp_us,
+  x_msp_us = x_msp_us,
+  x_hbp_us = x_hbp_us,
+  x_hdi_us = x_hdi_us,
+  continent = as.integer(order_dat_nous$continent),
+  n = nrow(order_dat_nous ),
+  c = length(table(dat$continent)),
+  p = 5
+  
+)
+  
+
+fit.stan_nous <- stan(model_code = m_conti, data = conti_data, iter = 20000, warmup = 5000, chains = 4)
+pred_no_us <- summary(fit.stan_nous)$summary[81:117,c(1,4,6,8)]
+RSS_nus = sum((pred_no_us[,1] - y_order_nous)^2)
+rownames(pred_no_us) <- order_dat_nous$location
+
+```
+
+```{r pred_us, fig.align='center', fig.cap="Predictive Distribution for United States"}
+plot(density(extract(fit.stan_nous)$pred_us), type = 'l', lwd = 2, col = 'red', main="Predictive Distribution for United States", xlab = "Covid Proportion")
+abline(v = y[which(dat$location=="United States")], col = "lightblue", lwd = 3)
+text( "True Data", x = -1, y = 0.8, col = "lightblue")
+text( "Predictive Distribution", x = -4, y = 0.4, col = "red")
+
+```
+
+
+```{r pred_nous_prop, fig.align='center', fig.cap="Predictive Distribution(US Excluded)", message=FALSE, warning=FALSE,results="hide"}
+plot(pred_no_us[,1], type = 'b', pch = 19, lwd = 2, xlab = "Country", ylab = "Case Proportion in Each Country",ylim = c(-6,-1), col = "lightblue", main = "Proportion Prediction(US Excluded)")
+lines(y_order_nous, type= 'b', pch = 19, lwd = 2, col = "lightpink")
+legend("bottomright", c("Predictive Mean", "Real Data"), col = c("lightpink","lightblue"), lty = c(1,1), pch = c(19,19))
+```
+
+
+```{r pred_nous_tot, fig.align='center', fig.cap="Predictive Distribution(US Excluded)", message=FALSE, warning=FALSE,results="hide"}
+plot(exp(pred_no_us[,1])*order_dat_nous$population, type = 'b', pch = 19, lwd = 2, xlab = "Country", ylab = "Total Cases in Each Country", col = "lightblue", main = "Total Cases Prediction(US Excluded)")
+lines(order_dat_nous$total_cases, type= 'b', pch = 19, lwd = 2, col = "lightpink")
+legend("topleft", c("Predictive Mean", "Real Data"), col = c("lightpink","lightblue"), lty = c(1,1), pch = c(19,19))
+
+
+```
+\subsubsection*{4.2.2 Without Sri Lanka }
+
+In this case, as in section 4.2.1, we discard the Sri Lanka and then make a predictive distribution for other countries. The posterior predictive distribution summary are shown in tables in appendix for each country. And the overall posterior predictive performance is shown in figure \ref{fig:pred_nosl_prop} and \ref{fig:pred_nosl_prop}. Also the RSS of this model could be expressed as:
+$$RSS_{-SL} = \sum_{i=1}^n (\hat{y_i}-y_i)^2=2.127073$$
+Furthermore, the specific predictive distribution for Sri Lanka is in figure \ref{fig:pred_sl}
+```{r nosl_tab, message=FALSE, warning=FALSE,results="hide" }
+
+order_dat_nosl <- order_dat[-which(order_dat$location == "Sri Lanka"),]
+
+y_order_nosl <- log(order_dat_nosl$total_cases_per_million/1e6)
+x_tpc <-  order_dat_nosl$tests_per_case
+x_tbp <-  order_dat_nosl$total_boosters_per_hundred
+x_msp <-  order_dat_nosl$male_smokers
+x_hbp <-  order_dat_nosl$hospital_beds_per_thousand
+x_hdi <-  order_dat_nosl$human_development_index
+order_dat_nosl$continent[which(order_dat_nosl$continent=="Africa")] <- 1
+order_dat_nosl$continent[which(order_dat_nosl$continent=="Asia")] <- 2
+order_dat_nosl$continent[which(order_dat_nosl$continent=="Europe")] <- 3
+order_dat_nosl$continent[which(order_dat_nosl$continent=="North America")] <- 4
+order_dat_nosl$continent[which(order_dat_nosl$continent=="South America")] <- 5
+x_tpc_sl <- dat$tests_per_case[which(dat$location=="Sri Lanka")]
+x_tbp_sl <- dat$total_boosters_per_hundred[which(dat$location=="Sri Lanka")]
+x_msp_sl <- dat$male_smokers[which(dat$location=="Sri Lanka")]
+x_hbp_sl <- dat$hospital_beds_per_thosland[which(dat$location=="Sri Lanka")]
+x_hdi_sl <- dat$human_development_index[which(dat$location=="Sri Lanka")]
+
+set.seed(0)
+m_conti <- "
+
+data{
+
+int n;
+int p;
+int c;
+vector[n] y_order;
+vector[n] x_tpc;
+vector[n] x_tbp;
+vector[n] x_msp;
+vector[n] x_hbp;
+vector[n] x_hdi;
+int continent[n];
+real x_tpc_sl;
+real x_tbp_sl;
+real x_msp_sl;
+real x_hbp_sl;
+real x_hdi_sl;
+
+
+
+
+
+}
+
+parameters{
+
+real<lower = 0> sigma;
+vector[c] beta_int;
+matrix[p,c] beta_others;
+
+real mu_int;
+vector[p] mu_others;
+
+real<lower = 0> tau_int;
+vector<lower = 0>[p] tau_others;
+
+}
+
+
+
+
+
+model{
+
+
+beta_int ~ normal(mu_int, tau_int);
+
+
+for(i in 1:p){
+  for(j in 1:c){
+    beta_others[i,j] ~ normal(mu_others[i], tau_others[i]);
+  }
+}
+
+
+for(i in 1:n){
+
+y_order[i] ~ normal(beta_int[continent[i]] + x_tpc[i]*beta_others[1,continent[i]] + x_tbp[i]*beta_others[2,continent[i]] + x_msp[i]*beta_others[3,continent[i]] + x_hbp[i]*beta_others[4,continent[i]] + x_hdi[i]*beta_others[5,continent[i]], sigma);
+
+}
+
+}
+generated quantities{
+
+vector[n] log_lik;
+vector[n] pred_y;
+real yhat;
+real yhat_sl;
+real pred_sl;
+
+for(i in 1:n){
+yhat = beta_int[continent[i]] + x_tpc[i]*beta_others[1,continent[i]] + x_tbp[i]*beta_others[2,continent[i]] + x_msp[i]*beta_others[3,continent[i]] + x_hbp[i]*beta_others[4,continent[i]] + x_hdi[i]*beta_others[5,continent[i]];
+log_lik[i] = normal_lpdf(y_order[i] | yhat, sigma) ;
+pred_y[i] = normal_rng(yhat, sigma);
+
+}
+yhat_sl = beta_int[2] + x_tpc_sl*beta_others[1,2] + x_tbp_sl*beta_others[2,2] + x_msp_sl*beta_others[3,2] + x_hbp_sl*beta_others[4,2] + x_hdi_sl*beta_others[5,2];
+pred_sl = normal_rng(yhat_sl, sigma);
+  
+}
+
+
+"
+
+conti_data <- list(
+  
+  y_order = y_order_nosl,
+  x_tpc = x_tpc,
+  x_tbp = x_tbp,
+  x_msp = x_msp,
+  x_hbp = x_hbp,
+  x_hdi = x_hdi,
+  x_tpc_sl = x_tpc_sl,
+  x_tbp_sl = x_tbp_sl,
+  x_msp_sl = x_msp_sl,
+  x_hbp_sl = x_hdi_sl,
+  x_hdi_sl = x_hdi_sl,
+  continent = as.integer(order_dat_nosl$continent),
+  n = nrow(order_dat_nosl ),
+  c = length(table(dat$continent)),
+  p = 5
+  
+)
+  
+
+fit.stan_nosl <- stan(model_code = m_conti, data = conti_data, iter = 20000, warmup = 5000, chains = 4)
+pred_no_sl <- summary(fit.stan_nosl)$summary[81:117,c(1,4,6,8)]
+rownames(pred_no_sl) <- order_dat_nosl$location
+RSS_nsl = sum((pred_no_sl[,1] - y_order_nosl)^2)
+```
+
+```{r pred_sl, fig.align='center', fig.cap="Predictive Distribution for Sri Lanka"}
+plot(density(extract(fit.stan_nosl)$pred_sl), type = 'l', lwd = 2, col = 'red', main="Predictive Distribution for Sri Lanka", xlab = "Covid Proportion")
+abline(v = y[which(dat$location=="Sri Lanka")], col = "lightblue", lwd = 3)
+text( "True Data", x = -3.1, y = 0.2, col = "lightblue")
+text( "Predictive Distribution", x = -5, y = 0.2, col = "red")
+
+```
+
+
+```{r pred_nosl_prop, fig.align='center', fig.cap="Predictive Proportion(SL Excluded)", message=FALSE, warning=FALSE,results="hide"}
+plot(pred_no_sl[,1], type = 'b', pch = 19, lwd = 2, xlab = "Country", ylab = "Case Proportion in Each Country", col = "lightblue",ylim = c(-5, -1), main = "Proportion Prediction(SL Excluded)")
+lines(y_order_nosl, type= 'b', pch = 19, lwd = 2, col = "lightpink")
+legend("bottomright", c("Predictive Mean", "Real Data"), col = c("lightpink","lightblue"), lty = c(1,1), pch = c(19,19))
+```
+
+
+```{r pred_nosl_tot, fig.align='center', fig.cap="Predictive Total Case(SL Excluded)", message=FALSE, warning=FALSE,results="hide"}
+plot(exp(pred_no_sl[,1])*order_dat_nosl$population, type = 'b', pch = 19, lwd = 2, xlab = "Country", ylab = "Total Cases in Each Country", col = "lightblue",ylim = c(0, 6e7), main = "Total Cases Prediction(SL Excluded)")
+lines(order_dat_nosl$total_cases, type= 'b', pch = 19, lwd = 2, col = "lightpink")
+legend("topleft", c("Predictive Mean", "Real Data"), col = c("lightpink","lightblue"), lty = c(1,1), pch = c(19,19))
+
+```
+
+\section*{5. Conclusion}
+
+In all, the most significant coefficient that affects the proportion of the covid is the human development index. This could be interpreted that as the human development index increases, the people are moving from one area to another area of the country more frequently and having more connections to other people, which makes covid more easy to spread. Also, the hospital beds proportion is also positively correlated with the covid proportion, this could be explained by the positive relationship between the testing ability and proportion of beds. As the proportion of beds increases, the ability of doing the test also increases, which means that more covid cases will be found and reported.
+
+Furthermore, as an outlier, United States, if we regress the model without US, the prediction performance will be better. It seems that the model without US will perform better than the model without Sri Lanka because Sri Lanka seems less likely to be an outlier comparing with United States.
+
+
+\section*{6. Discussion}
+
+Here I used the random effect model, so I did not consider the interaction effect between continent and others. Imagine this case:
+
+
+$$Y_i = \beta_0+\beta_1X_{1i}+\beta_2X_{2i}+\beta_3X_{1i}X_{2i}+\epsilon_i$$
+When $X_{1i}$ is a 0-1 variable, and $x_{1i}=0$:
+
+$$Y_i = \beta_0+\beta_2X_{2i}+\epsilon_i$$
+When $x_{1i}=1$:
+
+$$Y_i = \beta_0+\beta_1+\beta_2X_{2i}+\beta_3X_{2i}+\epsilon_i=\beta_{int}+\beta_{slope}X_{2i}+\epsilon_i$$
+In which,
+$$\beta_{int}=\beta_0+\beta_1, \ \ \ \beta_{slope}=\beta_2+\beta_2$$
+Therefore, we can simply treat this as a random effect model that for each group, it has its own slope and intercept, then the interaction effect has been considered. Also, we even consider the similarity among different groups by fitting a hierarchical model.
+
+
+# Appendix
+
+\newpage
+
+```{r}
+kable( round(pred_no_us,3), format = "latex", align = "c", caption = "Non-US Model Predicting Result")
+kable( round(pred_no_sl,3), format = "latex", align = "c", caption = "Non-SL Model Predicting Result")
+```
+

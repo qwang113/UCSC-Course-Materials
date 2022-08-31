@@ -1,0 +1,585 @@
+---
+geometry: "margin=0.8in"
+output: 
+  pdf_document:
+    latex_engine: xelatex   
+documentclass: asaproc
+header-includes:
+    - \usepackage{setspace}
+    - \singlespacing
+    - \usepackage{bm}
+    - \usepackage{graphics}
+---
+
+```{r global_options, include=FALSE, message=FALSE, warning=FALSE,results="hide", echo=FALSE}
+    rm(list = ls())
+    knitr::opts_chunk$set(fig.width=5, 
+    fig.height=4, fig.path='./Figs/',echo=FALSE,  warning=FALSE, message=FALSE)
+    library(knitr)
+    library(glmnet)
+    library(plotmo)
+    library(rstan)
+    library(bayesplot)
+    library(loo)
+    data_tree <- read.csv(here::here("data_pines.csv"))
+    options(mc.cores = parallel::detectCores(16))
+```
+\title{Factors Affecting Leaf Mass Analysis}
+
+\author{ID:6677$^1$\\
+Department of Statistics, University of California, Santa Cruz$^1$\\
+}
+ 
+\maketitle
+
+
+
+\section*{Abstract}
+
+In this report, we explored the relationship between the leaf mass per area, the distance from top of tree to where leaf sample was taken and the species of the tree. When treating the distance as a categorical variable and considering the clustering properties of the variable, the model simply became an ANOVA model and not the mean of all the groups are same. When treating it as a continuous variable and considering the species, there are significant difference among species LMA mean. In a Bayesian setting, no matter whether we consider the tree-level effects on the slope, the result are not so different from each other. And by WAIC and looic criteria, the model excluding tree-level slope effects performs better.
+
+
+
+\begin{keywords}
+
+ANOVA, Linear Regression, Random Effect Model, WAIC
+
+\end{keywords}
+
+
+\section*{1. Background and Data Overview}
+
+\subsection*{1.1 Data Set Description}
+
+The dataset contains data from leaves of two pine species (20 trees in total) that were sampled throughout their canopy. Eight samples were taken at various heights in each tree, with the objective of investigating whether or not there is a pattern of higher leaf thickness (higher LMA) toward the top of the trees.
+
+In total, there are 160 rows and the following variables: **ID**: an ID of the individual tree, **species**: a categorical variable with two levels, Pinus ponderosa and Pinus monticola, **dfromtop**: a numerical variable corresponding to the distance from top of tree to where leaf sample was taken in meters, **height**: a numerical variable corresponding to the height from the ground where sample was taken in meters, and **LMA**: a numerical value corresponding to the leaf mass per area in $g/m^2$. Noticing that the data could be divided according to the tree ID, the assumptions of independent data sampling process are not satisfied, which will be discussed later in the regression part. 
+
+\subsection*{1.2 Variable Properties and EDA}
+
+\subsubsection*{1.2.1 Variable Summary}
+
+Since the **ID** includes both the letter and the number, I will rearrange the ID from 1 to 20. Noticing that in each ID group, there are all actually eight samples, we can also deal with the variable **species**, in which 0 means "Pinus ponderosa" and 1 means "Pinus monticola".(To simplify the notation, I will use "P" and "M" instead for description). A basic summary of the variable **dfromtop**, **height** and **LMA** is shown in table \ref{tab:sum}. The species variable is a categorical one, and the height, LMA and dfromtop are numerical continuous variables. The response variable is LMA, and others are treated as covariates. 
+
+```{r sum}
+D <- data_tree[order(data_tree$ID),]
+f <- Vectorize(rep)
+ID_new <- f(1:20, table(D$ID))
+D$ID <- ID_new
+D$species[1:64] <- 0
+D$species[65:160] <- 1
+sd <- summary(D$dfromtop)
+sh <- summary(D$height)
+sl <- summary(D$LMA)
+tab_sum <- rbind(sd, sh, sl)[,-4]
+rownames(tab_sum) <- c("Dftop", "Height", "LMA")
+colnames(tab_sum) <- c("Min", "0.25Q","Median","0.75Q","Max")
+kable(round(tab_sum,1), caption = "Summary of Numeric Variables", align = "c", format = "latex")
+```
+
+
+
+\subsubsection*{1.2.2 Exploratory Data Analysis}
+
+We are pretty interested in whether the species will affect the LMA value, which is a relationship between a categorical and continuous numerical variable. The overall LME comparison among different species are shown in figure \ref{fig:bpt}. As we can see there are very significant LMA difference among different species, it seems that Ponderosa has an overall higher LMA comparing with that of Monticola. Also, the scatterplot of the other variables are also as follows in figure \ref{fig:spt}, the red and blue line are describing the estimated trend **in each group**. Also, the scatterplot also shows that the LMA have significant separation between these two species. Also, the positive correlation between the distance from the top and LMA are more significant in Ponderosa species than Monticola. Furthermore, the height is also positively correlated with LMA in both of the groups and tends to have a different slope for different species. Noticing that we did not consider the correlation between samples who belong to the same tree, the correlation is considered later.
+
+```{r bpt, fig.align='center', fig.cap="Comparisons Among Species"}
+par(mfrow = c(1,2),mar = c(1,2,2,1))
+violin_plot(D$LMA[which(D$species==0)], col = c("lightpink"), ylab = "LMA", axes = FALSE, main = "Violin Plot Comparisons", ylim = c(100,400))
+axis(2)
+violin_plot(D$LMA[which(D$species==1)], col = c("lightblue"), ylab = "LMA", main = "Pinus Monticola", axes = FALSE, ylim = c(100,400), add = TRUE)
+axis(2)
+
+legend("topright",c( "Ponderosa","Monticola"), pch = c(19,19), col = c("lightpink", "lightblue"), bty = "n")
+
+boxplot(D$LMA~D$species, col = c("lightpink", "lightblue"), ylab = "LMA", main = "Boxplot Comparisons", axes = FALSE, xlab = " ")
+axis(2)
+legend("topright",c( "Ponderosa","Monticola"), pch = c(19,19), col = c("lightpink", "lightblue"), bty = "n")
+```
+
+```{r spt, fig.align='center', fig.cap="Scatterplot of Numeric Variables"}
+par(mfrow = c(1,2),mar = c(1,2,2,1))
+
+plot(x = D$dfromtop[which(D$species==0)], y = D$LMA[which(D$species==0)], col = "lightpink", pch = 19,  ylab = "LMA", ylim = c(100, 400), axes = FALSE, main = "dfromtop")
+axis(2)
+lines(x = D$dfromtop[which(D$species==1)], y = D$LMA[which(D$species==1)], col = "lightblue", pch = 18, type = 'p')
+lines(lowess( x = D$dfromtop[which(D$species==0)], y = D$LMA[which(D$species==0)] ), lwd = 2, col = "red")
+lines(lowess( x = D$dfromtop[which(D$species==1)], y = D$LMA[which(D$species==1)] ), lwd = 2, col = "blue")
+legend("topright",c( "Ponderosa","Monticola"), pch = c(19,18), col = c("lightpink", "lightblue"), bty = "n")
+
+
+plot(x = D$height[which(D$species==0)], y = D$LMA[which(D$species==0)], col = "lightpink", pch = 19,  ylab = "LMA", ylim = c(100, 400), axes = FALSE, main = "Height")
+axis(2)
+lines(x = D$heigh[which(D$species==1)], y = D$LMA[which(D$species==1)], col = "lightblue", pch = 18, type = 'p')
+lines(lowess( x = D$height[which(D$species==0)], y = D$LMA[which(D$species==0)] ), lwd = 2, col = "red")
+lines(lowess( x = D$height[which(D$species==1)], y = D$LMA[which(D$species==1)] ), lwd = 2, col = "blue")
+legend("topleft",c( "Ponderosa","Monticola"), pch = c(19,18), col = c("lightpink", "lightblue"), bty = "n")
+```
+\section*{2.Frequentist Model}
+
+\subsection*{2.1 Variable Transformation Model (Numerical to Categorical)}
+
+\subsubsection*{2.1.1 Variable Transformation Creteria}
+According to the past documentation of the variable **dfromtop**, this variable is always studied as a categorical variable. Therefore, to construct a new variable from **dfromtop**, I will create the variable **catdfromtop** in the way of adding two cut point to the data. We know the sample size is 120, one intuitive way to do the separation is using the quantile, which indicates that the first 40 are group 1, then 41-80 is group 2, the rest is group three. However, this method didn't consider the clustering properties of the data, thereofore, using histogram and checking whether the data has a clustering properties is a better choice. As shown in figure \ref{fig:his}, a good cut point for the first category is 4, and the second is hard to decide. However, to avoid a small sample in the last group, I will choose the second cut point to be 13. Therefore, for those whose **dfromtop** values are between zero and 4, I will set the **catdfromtop** to be 0, between 4 and 14 to be 1, and the rest to be 2.
+
+```{r his, fig.align='center', fig.cap="Histogram of dfromtop"}
+par(mar = c(2,2,2,1))
+hist(D$dfromtop, xlab = "", ylab = "", main = "", col = "lightpink")
+catdfromtop <- rep(NA, length(D$dfromtop))
+for (i in 1:length(D$dfromtop)) {
+  if(D$dfromtop[i] <= 4){catdfromtop[i] <- 0}else{
+    if(D$dfromtop[i] > 13){catdfromtop[i] <- 2}else{
+      catdfromtop[i] <- 1
+    }
+  }
+}
+
+catdfromtop <- factor(catdfromtop)
+```
+\subsubsection*{2.1.2 ANOVA Model}
+
+After transferring the variable **dfromtop** to **catdfromtop**, one proposed model is as follows:
+
+$$ Y_{i,j,k} = \mu + \beta_1I_{\{ c_1<x_{i,j,k} <c_2 \}} + \beta_2I_{\{ c_2<x_{i,j,k}  \}} + \epsilon_{i,j,k} $$
+with $\epsilon_{i,j,k}\sim^{i.i.d}N(0,\sigma^2)$ and $I$ to be indicator function indicating whether $x_{i,j,k}$ satisfies the condition. The regression result is shown in table \ref{tab:m1res}, from the table we can see that the $\beta_1$ and $\beta_2$ are significant. Our next goal is to compare the group-wise difference and check whether the group-wise difference is significant for all the three groups. ANOVA is a good way to achieve this goal. After using the ANOVA approach to analysis the data to check whether the group mean are same for all the groups, we got a p-value of 0.0151, smaller than 0.05, indicating that not all of the group means are same. By Tukey's HSD interval plot, we can exactly get the group-wise difference and check whether there are significant difference among the mean of different groups in figure \ref{fig:aov}. According to the plot, both the difference between the group 0 (the smallest group) and the group 1, whose distance from the top ranges from 4 to 13 and the difference between group 0 and group 2 are significant at 0.05 level, but the difference between group 1 and group 2 are not significant. Therefore, a more proper way to divide the data could be dividing them into just two groups, with the cut point equals to 4.
+
+
+
+```{r m1res}
+lm1 <- lm(D$LMA~catdfromtop)
+m1res <- summary(lm1)$coefficient
+rownames(m1res) <- c("Intercept", "Beta1","Beta2")
+kable(round(m1res,3), caption = "Regression Result", align = "c", format = "latex")
+```
+```{r aov, fig.align='center', fig.cap="Tukey's HSD Interval"}
+aov1 <- aov(D$LMA~catdfromtop)
+#summary(aov1)
+plot(TukeyHSD(aov1))
+```
+Finally, checking the residual assumptions are necessary for linear regression models. We strongly suspect there should be a species based difference based on our EDA part. Usually, we use the scatter plot between fitted values and the residuals as shown in figure \ref{fig:res1}, in which species type is also indicated. It seems that for different groups the residuals are not constant but not differ from each other too much. Also, it increases as the value of fitted values increase. Furthermore, the residuals have a pattern of clustering to different species. First, my change should be include species as a covariate, that changes the model to a two-way ANOVA, which exactly will be better for our data in this case. For now, I don't think our model is a good model to explain the response variable because the adjusted $R^2$ is only 0.0408 according to our regression result. This is really small and could not explain the factors affecting LMA well.
+
+```{r res1, fig.align='center', fig.cap="Residual Plot"}
+plot(x = lm1$fitted.values[which(D$species==0)], y = lm1$residuals[which(D$species==0)], ylab = "residuals", xlab = "Fitted Values", pch = 19, col = "lightpink", ylim = c(-120, 160))
+lines(x = lm1$fitted.values[which(D$species==1)], y = lm1$residuals[which(D$species==1)], ylab = "residuals", xlab = "Fitted Values", pch = 17, col = "lightblue", type = 'p')
+legend("top",c( "Ponderosa","Monticola"), pch = c(19,17), col = c("lightpink", "lightblue"), bty = "n")
+```
+
+\subsection*{2.2 Group Separated Linear Regression}
+
+Instead of using a ANOVA model, in this section, a linear regression model which separates the group is included. However, the design matrix should be a little different. The model can be expressed as follows:
+
+$$y_{i,j,k}=\mu_0I_{\{i=0\}}+\mu_1I_{\{i=1\}}+\beta_0I_{\{i=0\}}x_{i,j,k}+$$
+$$\beta_1I_{\{i=1\}}x_{i,j,k}+\epsilon_{i,j,k}$$
+and the regression results are shown in table \ref{tab:lm2}. $\mu_{dif}$ here simply means the difference between $\mu_1$ and $\mu_0$ above, i.e., $\mu_1-\mu_0$. From the table we can see the difference of intercept between species are significant. However, the distance from the top became not significant in both of the species. Finally, the significance of the affect of distance from the top are more significant in Ponderosa than Monticola. This model has an adjusted $R^2$ of 0.8351, which increases a lot compared with our previous model. The $\mu_0$ can be expressed as the expected LMA of individuals who belongs to Ponderosa species and have zero distance from the top. 
+$\mu_0+\mu_{dif}=\mu_1$ could be explained as the expected LMA of individuals who belongs to Monticola species and have zero distance from the top. $\beta_0$ can be interpreted in this way: the average increment of LMA will be 1.2052 if the distance from top increases 1 unit for an individual belonging to Ponderosa group, with all other variables remaining the same. Finally, $\beta_1$ can be interpreted in this way: the average reduction of LMA will be 0.2585 if the distance from top increases 1 unit for an individual belonging to Monticola group, with all other variables remaining the same. However, the $\beta$'s are not significant. 
+
+The assumptions of this model is obvious linearity, constant variance, the residuals are normally distributed, and the observations are independent from each other. However, in this case, data from the same tree is correlated with each other. 
+
+```{r lm2}
+dfromtop_0 <- D$dfromtop 
+dfromtop_0[which(D$species == 1)] <- 0
+x0jk <- dfromtop_0
+
+dfromtop_1 <- D$dfromtop 
+dfromtop_1[which(D$species == 0)] <- 0
+x1jk <- dfromtop_1
+
+mu_dif <- D$species == 1
+
+des <- as.data.frame(cbind(mu_dif, x0jk, x1jk))
+lm2 <- lm(D$LMA ~ des$mu_dif + des$x0jk + des$x1jk)
+
+tab_sum2 <- summary(lm2)$coefficients
+rownames(tab_sum2) <- c("Mu0", "Mu Dif", "Beta0", "Beta1")
+kable(round(tab_sum2,3), align = "c", caption = "Regression Coefficents", format = "latex")
+```
+
+To further make an evaluation of the performance of this model, a residual analysis is needed. As shown in the figure \ref{fig:reslm2}, the residuals of the Monticola species seems to have an increasing pattern as the fitted values increase. However, the Ponderosa species tends to have decreasing variance as the increase of the fitted values. To improve this case, we can try to do data transformation, a square root transformation of LMA is considered since the log transformation is more fit for dealing with severer case of non-constant variance. The interpretation of the coefficient will be changed correspondingly to the mean of the square root of LMA instead of LMA. Also, another better way to analyze the data is to divide them into two groups based on species, then analyze them differently because the residuals tends to have clustering properties.
+
+```{r reslm2, fig.align='center', fig.cap="Residual Plot(Group Separated Model)"}
+
+plot(x = lm2$fitted.values[which(D$species==0)], y = lm2$residuals[which(D$species==0)], ylab = "residuals", xlab = "Fitted Values", pch = 19, col = "lightpink", ylim = c(-120, 160), xlim = c(150, 310))
+lines(x = lm2$fitted.values[which(D$species==1)], y = lm2$residuals[which(D$species==1)], ylab = "residuals", xlab = "Fitted Values", pch = 17, col = "lightblue", type = 'p')
+legend("top",c( "Ponderosa","Monticola"), pch = c(19,17), col = c("lightpink", "lightblue"), bty = "n")
+
+```
+\subsection*{2.3 Model Comparisons}
+
+We have multiple creteria for model selection like AIC, adjusted R-squared and so on. The second model simply uses a group separated way to make the data analysis. However, the residuals seems to violate the assumptions of constant variance. For the first model, it is a one way ANOVA approach, that one is easier to carry out since fewer parameters are included in the model, but the strength of interpretation is so weak. The AIC for the first model is 1793.296, and 1512.506 for the second model. The BIC for the first model is 1805.597, and 1527.882 for the second model. Obviously, I will choose the second model because the AIC is smaller, BIC is smaller and adjusted R-squared is much larger. To further improve the model, another way could be using the weighted least squares or do some square root transformation of the response variable.
+
+\section*{3.Bayesian Model}
+
+\subsection*{3.1 Speciese-wise Slope Model}
+
+In this model, a Bayesian approach is applied. And we are still interested in the relationship between the distance from the top and the LMA. We consider observations from a typical tree of a certain species will have the same intercept, but all the observations from the same species share the same slope, in which we ignore the tree-level effect on the slopes.
+
+\subsection*{3.1.1 Model Assumption}
+
+In this Bayesian model, different trees from different species have different intercepts. However, the slope of the trees in the same species remains the same as each other. The model could be described as follows:
+
+$$y_{i,j,k}=\mu_{ij}+\beta_ix_{i,j,k}+\epsilon_{i,j,k}$$
+$$\epsilon_{i,j,k} \sim N(0,\sigma^2), \ \ \mu_{ij} \sim N(\mu_{i0}, \tau^2) $$
+$$\beta_i \sim N(0,\phi^2), \ \ p(\mu_{i0},\sigma^2, \tau^2) \propto\frac{1}{\sigma^2\tau^2}$$
+With this model, we can get the posterior full conditional distribution for all the parameter, which are needed for Gibbs sampler and posterior inference. First, denote $n_i$ the number of trees in species $i$, and $m_{ij}$ is the number of leaves of species $i$ and the $j^{th}$ individual in this species. Same as before, $i=0$ indicates the species Ponderosa, $i=1$ for Monticola. I set the prior for $\tau^2$ to be $\frac{1}{\tau^2}$ since it's both non-informative and the posterior could be written in a closed form, same for $\sigma^2$.
+
+Furthermore, I prefer to set a more flexible and weak prior, so I chose $\phi$ to be 10 because based on our frequentist linear regression result, $|\beta|$ should be single-digit order of magnitude, so if I set $\phi$ to be 10, according to the rule of thumb or empirical rule, it is not a very strong prior but also can shrink $\beta$ towards zero.
+
+$$\mu_{ij}|\cdot \ \sim N(\frac{   \frac{ \sum_{k=1}^{m_{ij}} (y_{ijk}-\beta_ix_{ijk})^2}{\sigma^2} + \frac{\mu_{i0}}{\tau^2}  } {\frac{m_{ij}}{\sigma^2} + \frac{1}{\tau^2}}, (\frac{m_{ij}}{\sigma^2}+\frac{1}{\tau^2})^{-1})$$
+
+$$\mu_{i0} |\cdot \sim N(\frac{\sum_{j=1}^{n_i}\mu_{ij}}{n_i}, \frac{\tau^2}{n_i})$$
+
+
+
+$$\beta_i | \cdot \sim N(\frac{\frac{\sum_{j=1}^{n_i}\sum_{k=1}^{m_{ij}} x_{ijk}(y_{ijk}-\mu_{ij})}{\sigma^2} }{ \frac{ \sum_{j=1}^{n_i}\sum_{k=1}^{m_{ij}}x_{ijk}^2}{\sigma^2}+\frac{1}{\phi^2}},  \frac{1}{  \frac{ \sum_{j=1}^{n_i}\sum_{k=1}^{m_{ij}}x_{ijk}^2}{\sigma^2}+\frac{1}{\phi^2}})$$
+
+$$\sigma^2 | \cdot \sim IG(\frac{N}{2}, \frac{SSR_{temp}}{2})$$
+with $N=\sum_{i=0}^1\sum_{j=1}^{n_i}m_{ij}$ i.e., the sample size, and
+$$SSR_{temp} = \sum_{i=0}^1\sum_{j=1}^{n_i}\sum_{k=1}^{m_{ij}}(y_{ijk}-\mu_{ij}-\beta_ix_{ijk})^2$$
+
+$$\tau^2 | \cdot \sim IG(\frac{\sum_{i=0}^1n_i }{2}, \frac{\sum_{i=0}^1\sum_{j=1}^{n_i}(\mu_{ij}-\mu_{i0})^2}{2})$$
+\subsection*{3.1.2 Posterior Summary}
+The posterior MCMC trace plot are in figure \ref{fig:trace1}, all chains mix well and converge to a similar distribution. And the posterior density is shown in figure \ref{fig:dense1}. There are very significant difference in the mean LMA of these two species, but the slope seems similar to each other. The Ponderosa group has an overall mean LMA of 295.35, and the Monticola group has an overall mean LMA of 174.93. And the posterior mean slope of distance from top for species Ponderosa is -2.41, and -1.89 for Monticola.
+
+```{r mcmcm1}
+
+stan.code <- "
+
+
+data{
+
+int N;
+int n_0;
+int n_1;
+int ID[N];
+int GIDP[N];
+int GIDM[N];
+int SID[N];
+vector[N] dfromtop;
+vector[N] LMA;
+vector[N] M;
+vector[N] P;
+
+}
+
+parameters{
+
+vector[n_0] muPall;
+vector[n_1] muMall;
+real mu_P0;
+real mu_M0;
+vector[2] beta;
+real<lower = 0> sigma;
+real<lower = 0> tau;
+
+
+}
+
+
+model{
+
+
+for(i in 1:2){
+
+beta[i] ~ normal(0, 10);
+
+}
+
+
+for(i in 1:n_0){
+
+muPall[i] ~ normal(mu_P0, tau);
+
+}
+
+for(i in 1:n_1){
+
+muMall[i] ~ normal(mu_M0, tau);
+
+}
+
+for(i in 1:N){
+
+LMA[i] ~ normal(P[i]*muPall[ GIDP[i] ] + M[i]*muMall[GIDM[i]] + beta[ SID[i] ]*dfromtop[i], sigma  ) ;
+
+}
+
+
+
+
+
+}
+
+
+generated quantities{
+
+vector[N] log_lik;
+real yhat;
+real pred_y1;
+real pred_y2;
+real pred_mu;
+vector[N] yall_pred;
+
+for(i in 1:N){
+yhat = P[i]*muPall[ GIDP[i] ] + M[i]*muMall[GIDM[i]] + beta[ SID[i] ]*dfromtop[i];
+log_lik[i] = normal_lpdf(dfromtop[i] |  yhat, sigma) ;
+yall_pred[i] = normal_rng(yhat, sigma);
+
+}
+
+pred_mu = normal_rng(mu_P0, tau);
+pred_y1 = normal_rng(pred_mu + beta[1]*2.33, sigma);
+pred_y2 = normal_rng(pred_mu + beta[1]*10.742, sigma);
+
+}
+
+"
+
+
+colnames(D)[2] <- "M"
+P <- 1 - as.integer(D$M)
+D_2sp <- cbind(D, P)
+
+stan.data <- list(
+  N = nrow(D),
+  ID = D_2sp$ID,
+  M = as.integer(D_2sp$M),
+  LMA = D_2sp$LMA,
+  P = D_2sp$P,
+  n_0 = 8,
+  n_1 = 12,
+  GIDM = as.integer(D$ID - 8*as.integer(D_2sp$M)),
+  GIDP = as.integer(apply( as.matrix(D$ID - 8*as.integer(D_2sp$M)), 1, min, 8)),   
+  SID = as.integer(2-D_2sp$P),
+  dfromtop = D$dfromtop
+  
+)
+
+bayesm1 <- stan(model_code = stan.code, data = stan.data, iter = 20000, warmup = 5000, chains = 4)
+```
+```{r trace1, fig.align='center', fig.cap="Posterior Mixing Performance", warning=FALSE, message=FALSE}
+
+mcmc_trace(bayesm1, pars = c("mu_P0","mu_M0","beta[1]","beta[2]","sigma","tau"))
+
+```
+```{r dense1, fig.align='center', fig.cap="Posterior Density", warning=FALSE, message=FALSE}
+
+mcmc_dens(bayesm1, pars = c("mu_P0","mu_M0","beta[1]","beta[2]","sigma","tau"))
+
+```
+
+
+\subsection*{3.1.3 Posterior Predictive Distribution}
+
+First, I generated the "Tree", like the $\mu_{0,new}$ because this new leave does not belong to any existing tree, after generating this new tree, then $LMA_{new}\sim N(\mu_{0, new}, \sigma^2)$. Using our posterior samples of the overall mean $\mu_{i0}$,$\beta$ and $\sigma^2$, we can get a posterior predictive sample for each of the trees.
+
+The predictive distribution for two samples from Ponderosa group with distance from top being 2.330 and 10.742 are shown in the figure \ref{fig:pred1}, and the 95% credible interval is shown in figure \ref{fig:pred2}. 
+
+```{r pred1, fig.align='center', fig.cap="Posterior Predictive Distribution"}
+mcmc_dens(bayesm1, pars = c("pred_y1","pred_y2"))
+```
+```{r pred2, fig.align='center', fig.cap="Posterior Credible Interval"}
+plot(bayesm1, pars = c("pred_y1","pred_y2"))
+```
+
+
+\subsection*{3.2 Speciese-wise and Tree-level Slope Model}
+
+Based on the model mentioned in 3.1, we introduce the tree-level effect on slope to the model, indicating that observations from different individual trees of different species share the same slope and intercept. As long as the observations are from different individuals or different species, the slope and the intercept will both be different from each other.
+
+\subsection*{3.2.1 Model Assumption}
+In this model, we not only consider the tree-level intercept, but also the tree-level slopes for all the trees. Therefore, I consider for each species, the slope shares the same mean, which means in each species group, the $\beta_{ij}$ are iid normal distributed with mean $\beta_{i0}$ for $i = 0,1$. Also, we should put a prior distribution on $\phi$ since it is the variance parameter of the $\beta_{i0}$. Similar to the previous model, I put an non-informative prior on it. Therefore, the model can be express as follows:
+
+$$y_{i,j,k}=\mu_{ij}+\beta_{ij}x_{i,j,k}+\epsilon_{i,j,k}$$
+$$\epsilon_{i,j,k} \sim N(0,\sigma^2), \ \ \mu_{ij} \sim N(\mu_{i0}, \tau^2) $$
+$$\beta_{ij} \sim N(\beta_{i0},\phi^2), \ \ p(\mu_{i0},\beta_{i0},\sigma^2, \tau^2,\phi^2) \propto\frac{1}{\sigma^2\tau^2\phi^2}$$
+\subsection*{3.2.2 Posterior Summary}
+I will simply plot the trace plot and posterior density for $\mu_{i0},\beta_{i0},\tau^2, \sigma^2,\phi^2$ in figure \ref{fig:tracem2} and figure \ref{fig:dencem2}. The model mixed well because the Rhat of each variables are 1. And the posterior density still shows that the overall mean intercept of Ponderosa group still higher than the Monticola group. A big difference is that the slope of each individual tree are not so close to each other according to our posterior summary. But the overall mean slope of Ponderosa group is around -2.7, which differed from the Monticola group, -1.95.
+
+```{r mcmcm2}
+stan.code <- "
+
+
+data{
+
+int N;
+int n_0;
+int n_1;
+int ID[N];
+int GIDP[N];
+int GIDM[N];
+int SID[N];
+vector[N] dfromtop;
+vector[N] LMA;
+vector[N] M;
+vector[N] P;
+
+}
+
+parameters{
+
+vector[n_0] muPall;
+vector[n_1] muMall;
+real mu_P0;
+real mu_M0;
+
+vector[n_0] betaPall;
+vector[n_1] betaMall;
+real beta_P0;
+real beta_M0;
+
+real<lower = 0> sigma;
+real<lower = 0> tau;
+real<lower = 0> phi;
+ 
+
+}
+
+
+model{
+
+
+
+
+
+for(i in 1:n_0){
+
+muPall[i] ~ normal(mu_P0, tau);
+betaPall[i] ~ normal(beta_P0, phi);
+
+}
+
+for(i in 1:n_1){
+
+muMall[i] ~ normal(mu_M0, tau);
+betaMall[i] ~ normal(beta_M0, phi);
+
+}
+
+
+for(i in 1:N){
+
+LMA[i] ~ normal(P[i]*muPall[ GIDP[i] ] + M[i]*muMall[GIDM[i]] + P[i]*betaPall[ GIDP[i] ]*dfromtop[i] + M[i]*betaMall[GIDM[i]]*dfromtop[i] , sigma  ) ;
+
+}
+
+
+
+
+
+}
+
+
+generated quantities{
+
+vector[N] log_lik;
+real yhat;
+vector[N] pred_y2;
+
+
+for(i in 1:N){
+yhat = P[i]*muPall[ GIDP[i] ] + M[i]*muMall[GIDM[i]] + P[i]*betaPall[ GIDP[i] ]*dfromtop[i] + M[i]*betaMall[GIDM[i]]*dfromtop[i];
+log_lik[i] = normal_lpdf(dfromtop[i] |  yhat, sigma) ;
+pred_y2[i] = normal_rng(yhat, sigma);
+
+}
+
+
+
+}
+
+"
+
+
+colnames(D)[2] <- "M"
+P <- 1 - as.integer(D$M)
+D_2sp <- cbind(D, P)
+
+stan.data <- list(
+  N = nrow(D),
+  ID = D_2sp$ID,
+  M = as.integer(D_2sp$M),
+  LMA = D_2sp$LMA,
+  P = D_2sp$P,
+  n_0 = 8,
+  n_1 = 12,
+  GIDM = as.integer(D$ID - 8*as.integer(D_2sp$M)),
+  GIDP = as.integer(apply( as.matrix(D$ID - 8*as.integer(D_2sp$M)), 1, min, 8)),   
+  SID = as.integer(2-D_2sp$P),
+  dfromtop = D$dfromtop
+  
+)
+
+bayesm2 <- stan(model_code = stan.code, data = stan.data, iter = 20000, warmup = 5000, chains = 4)
+```
+```{r tracem2, fig.align='center', fig.cap="Trace Plot (Tree-level Slope)"}
+mcmc_trace(bayesm2, pars = c("mu_P0","mu_M0","beta_P0","beta_M0","sigma","tau","phi"))
+```
+```{r dencem2, fig.align='center', fig.cap="Posterior Density (Tree-level Slope)"}
+mcmc_dens(bayesm2, pars = c("mu_P0","mu_M0","beta_P0","beta_M0","sigma","tau","phi"))
+```
+
+
+
+
+
+
+\subsection*{3.3 Model Comparisons}
+
+\subsection*{3.3.1 Predictive Performance}
+
+```{r predsample}
+pred_1 <- summary(bayesm1)$summary[192:length(summary(bayesm1)$summary[,1])-1,1]
+pred_2 <- summary(bayesm2)$summary[210:length(summary(bayesm2)$summary[,1])-1,1]
+s1 <- sum((pred_1-D$LMA)^2)
+s2 <- sum((pred_2-D$LMA)^2)
+```
+
+One important criteria to judge the goodness of fit for a model is how well it can predict the samples. In this section, I simply use the posterior mean which is the bayes decision estimator under the quadratic loss function to make the predictive distribution. And then plot the true LMA value together with the posterior predictive mean and check how similar they are. The model excluding tree level slopes effect predicts the LMA in figure \ref{fig:notreepred}. And the model including the tree level slopes effect prediction is shown in figure \ref{fig:treepred}. They are pretty similar to each other. And the predictive sum squares of the first model is `r s1`, and `r s2` for the second model. Therefore, the second model actually behaves better than the one that excludes the tree-level slope effects. However, the second model includes more parameters than the first one, which makes it more flexible obviously. Therefore, more numerical ways to carry out model comparisons are needed.
+
+
+
+
+
+```{r notreepred, fig.align='center', fig.cap="Prediction Excluding Tree-level Slope"}
+plot(D$LMA, type = 'b', col = "lightpink", pch = 19, lwd = 2, lty= 1, ylab = "LMA", xlab = "Sample ID", main = "Non Tree-level Slope Model")
+lines(pred_1, type = 'b', col = "lightblue", pch = 17, lwd = 2, lty = 1)
+legend("topright", c("True","Predictive"), col = c("lightpink","lightblue"), pch = c(19,17), lty = c(1,1), bty = "n" )
+```
+```{r treepred, fig.align='center',fig.cap= "Prediction Including Tree-level Slope"}
+plot(D$LMA, type = 'b', col = "lightpink", pch = 19, lwd = 2, lty= 1, ylab = "LMA", xlab = "Sample ID", main = "Tree-level Slope Model")
+lines(pred_2, type = 'b', col = "lightblue", pch = 17, lwd = 2, lty = 1)
+legend("topright", c("True","Predictive"), col = c("lightpink","lightblue"), pch = c(19,17), lty = c(1,1), bty = "n" )
+```
+\subsection*{3.3.2 WAIC and looic}
+
+The WAIC for the first model is 69590, and 80996 for the second model, which indicates the first model is better. Furthermore, I also used the looic, and it is 41719 for the first model and 45219 for the tree-level slopes included model. Furthermore, although we includes more parameters in our model, the results shows that we still prefer the first one. We can also see the distribution of residuals, i.e, $\sigma^2$. They both center around 16, therefore, introducing extra $\beta$'s will not make the residuals reduce significantly. Therefore, due to the penalty of parameters, we prefer the first model, which does not include the tree-level slope effect.
+
+```{r}
+L1 <- extract_log_lik(bayesm1)
+WAIC_1 <-  waic(L1)
+L2 <- extract_log_lik(bayesm2)
+WAIC_2 <- waic(L2)
+WAIC_all <- c(WAIC_1$waic, WAIC_2$waic)
+elppd_all <- c(WAIC_1$elpd_waic, WAIC_2$elpd_waic)
+```
+
+\section*{4. Results}
+
+As shown in the Bayesian regression model which excludes the the tree-level effect, the effect of distance from top on LMA is more significant in species ponderosa than monticola. And also, the posterior mean effect are similar to each other. Furthermore, the effect of the distance from top is both negative for two species. Also, the overall intercept mean $\mu_{00}$ for spices ponderosa is much bigger than that of monticola. Furthermore, if we transfer the distance from the top from a numerical variable to an categorical by setting up thresholds, there are significant difference in mean among all the groups if we set the cut point to be 4 and 13. In our case, we did not see significant difference between the highest distance group and the second highest one, but we see both of these two groups have a significant difference of there means between the lowsest distance group. Also, as both shown in the results of Bayesian model and frequentist model, an important property of this dataset is that we should consider the interaction between species and distance from the top. If we don't consider the species as a covarate, both the adjusted $R^2$ and AIC will prefer the model that includes the species and the interaction between species and distance from the top.
+
+
+
+\section*{5. Discussion}
+
+In this model, we didn't include the height as a explanatory variable. From the EDA part, we can see that the height is a more significant factor that affects the LMA. Also, the slope for these two species are not the same, if in the future I have the chance going back to this data, I will add the height as a covariate and make sure difference species have different slopes. Since we have checked that the model including tree-level slope effect actually performed not so good, a new probable model can be with this form:
+$$y_{i,j,k}=\mu_{ij}+\beta_ix_{i,j,k}+\gamma_iz_{i,j,k}+\epsilon_{i,j,k}$$
+$$\epsilon_{i,j,k} \sim N(0,\sigma^2), \ \ \mu_{ij} \sim N(\mu_{i0}, \tau^2) $$
+$$\beta_i \sim N(0,\phi^2), \ \ p(\mu_{i0},\sigma^2, \tau^2) \propto\frac{1}{\sigma^2\tau^2}$$
+$$\gamma_i \sim N(0, \nu^2)$$
+in which, $z_{i,j,k}$ is the height variable of the sample from species $i$, the tree $j$ and the $k^{th}$ record. $\nu$ and $\phi$ are still hyperparameters, and i will not put a prior on them. This will propose a new model including the effects of the height. Noticing that the height is a measure of the distance from the ground, and seems to have a significant effect on the LMA based on the EDA part, and also the sum of the distance from the top and distance from the ground is actually the height of the tree, cases could also be that difference species have different overall height. Therefore, the distance from the ground could be correlated to the species, which is another interesting result if verified.
+
+
+
+
+
+

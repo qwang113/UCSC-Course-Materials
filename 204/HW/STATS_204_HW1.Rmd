@@ -1,0 +1,497 @@
+---
+title: "STATS_204_HW1"
+author: "Qi Wang"
+output:
+  pdf_document: 
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+\noindent 1. Use the qnorm function in R to find the quartiles (i.e., 25th, 50th and 75th percentiles) of the normal distribution with mean 100 and standard deviation 10.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+```
+
+
+```{r cars}
+ans <- matrix(qnorm(c(0.25,0.5,0.75), mean = 100, sd = 10), 1, 3)
+colnames(ans) <- c("0.25 quantile", "0.5 quantile", "0.75 quantile")
+print(ans)
+```
+
+
+\noindent 
+2.Use the curve function in R to display the graph of a $\chi^2(10)$ (10 corresponds to the degrees of freedom). Use a range of 0 to 100 for the x-axis. The chi-square density function is dchisq. 
+ 
+```{r}
+curve(dchisq(x, df = 10), from = 0, to = 100, n = 1000, type = 'l', xlab = "X",
+      ylab = "Probability", lwd = 2, col = 'red', 
+      main = "PDF of Chi-square Distribution with DF = 10")
+```
+\vspace{1cm}
+
+\noindent 3.(Gamma densities). Use the curve function to display the graph of the gamma density with shape parameter 1 and rate parameter 1. Then use the curve function with add=TRUE to display the graphs of the gamma density with shape parameter k and rate 1 for 2,3, all in the same graphics window. The gamma density function is dgamma. Consult the help file ?dgamma to see how to specify the parameters.
+
+```{r}
+curve(dgamma(x,shape = 1, rate = 1), from = 0, to = 20, n = 1000, type = 'l',
+      xlab = "X", ylab = "Probability", lwd = 2, col = 'red', 
+      main = "PDF of Gamma Distribution")
+curve(dgamma(x,shape = 2, rate = 1), from = 0, to = 20, n = 1000, type = 'l',
+      xlab = "X", ylab = "Probability", lwd = 2, col = 'lightblue', add = TRUE
+      , lty = 2)
+curve(dgamma(x,shape = 3, rate = 1), from = 0, to = 20, n = 1000, type = 'l',
+      xlab = "X", ylab = "Probability", lwd = 2, col = 'lightpink', add = TRUE
+      , lty = 3)
+legend("topright", c("Shape = 1 Rate = 1","Shape = 2 Rate = 1",
+        "Shape = 3 Rate = 1"), col =  c('red','lightblue','lightpink'),
+       lty = c(1,2,3))
+```
+\vspace{2cm}
+
+\noindent 4. (Binomial CDF). Let X be the number of “ones” obtained in 12 rolls of a fair die. Then X has a Binomial(n = 12, p = 1/3) distribution. Compute a table of cumulative binomial probabilities (the CDF) for x=0,1,...,12 by two methods:  
+
+(1) using cumsum and the result of Exercise 1.4  
+
+(2) using the pbinom function. What is P (X > 7)?
+
+```{r}
+p_1 <- vector()
+for (i in 0:12) {
+  p_1[i+1] <- choose(12, i) * (1/3)^i * (2/3)^(12-i)
+}
+print(cumsum(p_1))
+```
+```{r}
+p_2 <- pbinom(0:12, size = 12, prob = 1/3)
+print(p_2)
+```
+
+
+```{r}
+print(1-pbinom(7, size = 12, prob = 1/3))
+```
+
+
+\vspace{1cm}
+
+\noindent 5.(Simulated “horsekicks” data). The rpois function generates random observations from a Poisson distribution. In Example 1.3, we compared the deaths due to horsekicks to a Poisson distribution with mean $\lambda$ = 0.61, and in Example 1.4 we simulated random Poisson($\lambda$ = 0.61) data. Use the rpois function to simulate very large (n = 1000 and n = 10000) Poisson($\lambda$ = 0.61) random samples. Find the frequency distribution, mean and variance for the sample. Compare the theoretical Poisson density with the sample proportions (see Example 1.4).
+
+```{r}
+set.seed(0)
+S <- rpois(10000, lambda = 0.61)
+Freq <- table(S)/10000
+Real <- dpois(0:5, lambda = 0.61)
+RES <- cbind(Freq, Real)
+rownames(RES) <- c(0, 1, 2, 3, 4, 5)
+colnames(RES) <- c("Simulation", "Calculated by PMF")
+mu <- mean(S)
+sigma <- var(S)
+hist(S, freq = FALSE, breaks = 0:5, main = "Frequency Distribution of n = 10000")
+print(RES)
+```
+```{r}
+set.seed(1)
+S <- rpois(1000, lambda = 0.61)
+Freq <- table(S)/1000
+Real <- dpois(0:5, lambda = 0.61)
+RES <- cbind(Freq, Real)
+rownames(RES) <- c(0, 1, 2, 3, 4, 5)
+colnames(RES) <- c("Simulation", "Calculated by PMF")
+mu <- mean(S)
+sigma <- var(S)
+hist(S, freq = FALSE, breaks = 0:5, main = "Frequency Distribution of n = 1000")
+print(RES)
+```
+We can see that the simulation's frequency distribution is not so far from our real distribution. As the size of sampling increases, the accuracy will be improved. Here is the mean and variance of the simulated Poission distribution: 
+
+Mean:
+
+```{r}
+print(mu)
+```
+  
+Variance:
+
+```{r}
+print(sigma)
+```
+
+\vspace{1cm}
+
+\noindent 6.(horsekicks, continued). Refer to Example 1.3. Using the ppois function, compute the cumulative distribution function (CDF) for the Poisson distribution with mean $\lambda$ = 0.61, for the values 0 to 4. Compare these probabilities with the empirical CDF. The empirical CDF is the cumulative sum of the sample proportions p, which is easily computed using the cumsum func- tion. Combine the values of 0:4, the CDF, and the empirical CDF in a matrix to display these results in a single table.
+
+```{r}
+cdf_emp  <- cumsum(Freq)
+cdf_real <- ppois(0:4, lambda = 0.61)
+cdf_both <- cbind(cdf_emp[1:5], cdf_real)
+colnames(cdf_both) <- c("Empirical","Real")
+print(cdf_both)
+```
+\vspace{1cm}
+
+\noindent 7.(Custom standard deviation function). Write a function sd.n similar to the function var.n in Example 1.5 that will return the estimate $\hat{\sigma}$ (the square root of $\hat{\sigma}^2$). Try this function on the temperature data of Example 1.1.
+
+```{r}
+sd.n <- function(x){
+  v <- var(x)
+  n <- length(x)
+  s_d <- sqrt(v*(n-1)/n)
+  return(s_d)
+}
+temps = c(51.9, 51.8, 51.9, 53)
+sd.n(temps)
+```
+\vspace{1cm}
+
+\noindent 8.(Euclidean norm function). Write a function norm that will compute the Euclidean norm of a numeric vector. The Euclidean norm of a vector x = (x1,...,xn) is 
+$$||x||= \sqrt{\Sigma_{i=1}^nx_i^2}$$
+Use vectorized operations to compute the sum. Try this function on the vectors (0,0,0,1) and (2,5,2,4) to check that your function result is correct.
+
+```{r}
+NORM <- function(x){
+  eu_norm <- sqrt(sum(x^2))
+  return(eu_norm)
+}
+NORM(c(0,0,0,1))
+NORM(c(2,5,2,4))
+```
+
+\noindent 9.(Numerical integration). Use the curve function to display the graph of the function $$f(x) = e^{−x^2}/(1+x^2)$$
+on the interval $0 \leq x \leq 10$. Then use the integrate function to compute the value of the integral:
+$$\int_0^{\infty}\frac{e^{-x^2}}{1+x^2}dx$$
+The upper limit at infinity is specified by upper=Inf in the integrate function.
+
+```{r}
+F <- function(x){
+  out <- exp(-x^2)/(1+x^2)
+  return(out)
+}
+  
+curve(F, from = 0, to = 10)
+INT <- integrate(F, lower = 0, upper = Inf)
+print(INT)
+```
+\vspace{1cm}
+
+\noindent 10.Construct a matrix with 10 rows and 2 columns, containing random standard normal data:  
+
+x = matrix(rnorm(20), 10, 2)  
+
+This is a random sample of 10 observations from a standard bivariate normal distribution. Use the apply function and your norm function from Exercise 1.10 to compute the Euclidean norms for each of these 10 observations.
+
+```{r}
+set.seed(0)
+data <- matrix(rnorm(20), 10, 2) 
+apply(data, 1, NORM)
+```
+\vspace{1cm}
+
+\noindent 11.(mtcars data). Display the mtcars data included with R and read the documentation using ?mtcars. Display parallel boxplots of the quantitative variables. Display a pairs plot of the quantitative variables. Does the pairs plot reveal any possible relations between the variables?
+  
+***PS: Since different variables have different range, I have put the variables with similar ranges together.***
+```{r}
+par(mfrow = c(1,3))
+boxplot(mtcars$disp, mtcars$hp, xlab = "Displacement and Gross horsepower",
+        col =c("lightblue", "lightpink"))
+legend("topright", c("disp", "hp"), 
+       col = c("lightblue", "lightpink"), lty = c(1,1))
+boxplot(mtcars$mpg, mtcars$qsec, xlab = "Miles/Gallon and 1/4 Mile Time",
+        col =c("lightblue", "lightpink"))
+legend("topright", c("mpg", "qsec"), 
+       col = c("lightblue", "lightpink"), lty = c(1,1))
+boxplot(mtcars$drat, mtcars$wt, xlab = "Rear axle ratio and Weight",
+        col =c("lightblue", "lightpink"))
+legend("topright", c("drat", "wt"), 
+       col = c("lightblue", "lightpink"), lty = c(1,1))
+```
+
+```{r}
+Q_variables <- cbind(mtcars$mpg, mtcars$disp, mtcars$hp,
+                     mtcars$drat, mtcars$wt, mtcars$qsec)
+colnames(Q_variables) <- c("mpg", "disp", "hp", "drat", "wt", "qsec")
+pairs(Q_variables)
+```
+From the pair plots above, we can see that: Miles per gallon is negatively related to the displacement, horsepower and weight. Horsepower has a positive relationship with the displacement and weight. There could be other relationships between them, however, we need hypothesis testing.
+
+
+\vspace{1cm}
+
+\noindent 12.(mammals data). Refer to Example 2.7. Create a new variable r equal to the ratio of brain size over body size. Using the full mammals data set, order the mammals data by the ratio r. Which mammals have the largest ratios of brain size to body size? Which mammals have the smallest ratios? (Hint: use head and tail on the ordered data.)
+
+```{r}
+library(MASS)
+r <- mammals$brain / mammals$body
+
+mammals_new <- cbind(mammals,r)
+
+head(mammals_new[order(mammals_new$r, decreasing = TRUE),])
+tail(mammals_new[order(mammals_new$r, decreasing = TRUE),])
+
+```
+Therefore, "Ground squirrel" has the largest ratios of brain size to body size. And "African elephant" has the smallest one.
+  
+  
+**(mammals data, continued). Refer to Exercise 2.5. Construct a scatterplot of the ratio r = brain/body vs body size for the full mammals data set.**
+  
+  
+To make the scatterplot easier to observe, I truncated the body weight variable from the dataset.
+```{r}
+par(mfrow = c(1,3))
+plot(x = mammals_new$body, y = mammals_new$r, xlim = c(0,10),
+     xlab = "Body Weight", ylab = "Ratio of Brain to Body")
+plot(x = mammals_new$body, y = mammals_new$r, xlim = c(10,100),
+     xlab = "Body Weight", ylab = "Ratio of Brain to Body")
+plot(x = mammals_new$body, y = mammals_new$r, xlim = c(100,1000),
+     xlab = "Body Weight", ylab = "Ratio of Brain to Body")
+```
+It could be observed from the scatterplot that as body weight increases, the ratio has a trend to become smaller and smaller. I guess it is because the size of brain is not ratio to the size of body.
+
+
+
+\vspace{1cm}
+
+\noindent 13.(Central Limit Theorem with simulated data). Refer to Example 2.6, where we computed sample means for each row of the randu data frame. Repeat the analysis, but instead of randu, create a matrix of random numbers using runif.
+
+```{r}
+set.seed(0)
+uni_num_3 <- matrix(runif(400*3),400,3)
+```
+(Central Limit Theorem, continued). Refer to Example 2.6 and Exercise 2.7, where we computed sample means for each row of the data frame. Repeat the analysis in Exercise 2.7, but instead of sample size 3 generate a matrix that is 400 by 10 (sample size 10). Compare the histogram for sample size 3 and sample size 10. What does the Central Limit Theorem tell us about the distribution of the mean as sample size increases?
+
+```{r}
+set.seed(1)
+uni_num_10 <- matrix(runif(400*10),400,10)
+mean_3 <- apply(uni_num_3, 1, mean)
+mean_10 <- apply(uni_num_10, 1, mean)
+par(mfrow = c(1,2))
+hist(mean_3, main = "Histogram when sample size is 3", freq = FALSE)
+hist(mean_10, main = "Histogram when sample size is 10", freq = FALSE, xlim = c(0,1))
+```
+From the chart we can see that both of the mean of the samples follow a normal distribution. When the sample size rises from 3 to 10, the distribution of the mean becomes more centered, which means that it has smaller variance but still the same mean.
+
+\vspace{1cm}
+
+\noindent 14.(“Old Faithful” histogram). Use hist to display a probability histogram of the waiting times for the Old Faithful geyser in the faithful data set (see Example A.3). (Use the argument prob=TRUE or freq=FALSE.)
+
+```{r}
+hist(faithful$waiting, main = "Histogram of Waiting times",
+     xlab = "Waiting Times", prob = TRUE)
+```
+
+
+ (“Old Faithful” density estimate). Use hist to display a probability histogram of the waiting times for the Old Faithful geyser in the faithful data set (see Example A.3) and add a density estimate using lines.
+
+
+
+```{r}
+hist(faithful$waiting, main = "Histogram of Waiting times",
+     xlab = "Waiting Times", prob = TRUE)
+lines(density(faithful$waiting),col = 'red', lwd = 2, lty = 2)
+```
+\vspace{1cm}
+
+\noindent 15. Question Omitted  
+
+(a)  
+
+```{r}
+library(ISLR)
+write.csv(College, file = "college.csv")
+college <- read.csv("college.csv")
+```
+(b)  
+
+```{r}
+#We need lots of preparations for using the fix function like XQuartz package and some other R tools.
+rownames(college) <- college[,1]
+#fix(college)
+```
+I have tried how to use fix() function to make adjustment of the data, it is a amazing tool inside R.  
+
+(c.i)  
+
+```{r}
+summary(college)
+```
+
+
+(c.ii)  
+
+```{r}
+pairs(college[,3:12])
+```
+(c.iii) 
+
+```{r}
+boxplot(college$Outstate ~ college$Private,
+        main = "Boxplot Between Outstate and Private", 
+        xlab = "Whether the School Is Private",
+        ylab = "Out-of-state Tuition"
+        )
+```
+  
+  
+(c.iv) 
+
+```{r}
+Elite <- rep("No",nrow(college))
+Elite[college$Top10perc >50]="Yes" 
+Elite <- as.factor(Elite)
+college <- data.frame(college,Elite)
+summary(Elite)
+```
+There are 78 elite universities.  
+
+```{r}
+boxplot(college$Outstate ~ college$Elite,
+        main = "Boxplot Between Outstate and Elite",
+        xlab = "Elite", ylab = "Outstate")
+```
+  
+(c.v) 
+
+```{r}
+par(mfrow = c(2,2))
+hist(college$Apps, main = "Histogram of Applicants", xlab = "Applicants")
+hist(college$Accept, main = "Histogram of Accept", xlab = "Accepts")
+hist(college$Enroll, main = "Histogram of Enroll", xlab = "Enroll")
+hist(college$Outstate, main = "Histogram of Outstate", xlab = "Outstate")
+```
+
+(c.vi)  
+
+1. From the pair plots we can find that schools with more applicants will have more probability to have a larger number of accepted applicants and enrolled students.  
+
+2. If the school is a private school, it has relatively more outstate tuition compared with those not.  
+
+3. If the school is elite school, is has relatively more ourstate tuition compared with those not.  
+
+4. Schools with larger percent of students from top 10% of H.S. class tend to have larger percent of students from top 25% of H.S. class.   
+
+(This is an obvious conclusion, however, when we are making data analysis, this should be considered carefully because this may cause the dependece of these two variables.)
+
+
+\vspace{1cm}
+
+\noindent 16. Question Omitted
+  
+(a)  
+```{r}
+library(MASS)
+nrow(Boston)
+ncol(Boston)
+# I can also use dim(Boston).
+```
+
+We have 506 rows and 14 columns. Each row means one observation, i.e., a piece of data. Each column indicates a variabl(predictor).
+  
+
+(b)
+
+```{r}
+pairs(Boston[,c(1,5:8,11:14)])
+```
+  
+
+Findings:  
+
+1. As the weighted mean of distances to five Boston employment centers increases, the nitrogen oxides has a decreasing trend, i.e. they are negatively related.  
+
+2. Areas with great lower status of population tends to have smaller average number of rooms per dwelling.
+
+3. Those who have larger median value of owner-occupied homes tends to have greater average number of rooms per dwelling.  
+
+4. Lower status of the population and median value of owner-occupied homes seems to be negatively related. 
+
+
+(c)  
+The most obvious two predictors are "age" and "dis". As the proportion of owner-occupied units built prior to 1940 increases, the per capita crime seems to have a increasing trend. However, as the distance from the five Boston employment centers increases, the crime seems to have a decreasing trend.
+
+(d)  
+
+```{r}
+res_Bos <- cbind(range(Boston$crim), range(Boston$tax), range(Boston$ptratio))
+rownames(res_Bos) <- c("Min", "Max")
+colnames(res_Bos) <- c("Crim", "Tax", "Pupil-Teacher Ratio")
+print(res_Bos)
+par(mfrow = c(1,3))
+boxplot(Boston$crim, main = "Crime")
+boxplot(Boston$tax, main = "Tax")
+boxplot(Boston$ptratio, main = "Pupil-Teacher")
+```
+
+Therefore, we can say some suburbs have particular high crime rates. However, the other two variables seems not so widely spread. Let me find them:
+
+```{r}
+head(Boston[order(Boston$crim, decreasing = TRUE),])
+head(Boston[order(Boston$tax, decreasing = TRUE),])
+head(Boston[order(Boston$ptratio, decreasing = TRUE),])
+```
+Here we find those suburb that have exremely high crime rates, high tax rates and high pupil-teacher ratio rates.
+
+(e)  
+
+```{r}
+sum(Boston$chas)
+```
+Therefore, there are 35 suburbs in this data set bound the Charles river.
+
+(f)  
+
+```{r}
+median(Boston$ptratio)
+```
+  
+(g) 
+
+```{r}
+
+head(Boston[order(Boston$medv, decreasing = FALSE),])
+
+```
+
+We can see that 399 and 406 suburb have the smallest median value of owner-occupied homes. Take suburb # 399 as an example:
+
+```{r}
+apply(as.matrix(Boston), 2, rank)[399,]
+```
+
+We can see the crime rate is very high since the larger rank means the larger number. Proportion of non-retail business acres per town, nitrogen oxides, index of accessibility to radial highways, proportion of blacks and lower status of the population also have the larger numbers.
+
+(h)  
+
+```{r}
+nrow(Boston[which(Boston$rm > 7),])
+```
+```{r}
+nrow(Boston[which(Boston$rm > 8),])
+```
+
+In all, there are 64 suburbs average more than 7 rooms per dwelling, and 13 suburbs average more than 8 rooms per dwelling.
+
+Let's see their other index's rank:
+
+```{r}
+apply(as.matrix(Boston), 2, rank)[which(Boston$rm > 8),]
+```
+
+Firstly, most of them is not bounded by Charles River. Secondly, their median value of owner-occupied homes are high and average number of rooms per dwelling are very high, too.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,18 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+```{r}
+summary(cars)
+```
+
+
+
+```{r}
+plot(cars)
+```
+
+
+

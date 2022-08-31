@@ -1,0 +1,544 @@
+---
+title: "206hw3 "
+author: "Qi Wang"
+date: "2022/2/13"
+output: 
+  pdf_document:
+    latex_engine: xelatex   
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+# Question 1
+```{r}
+#e
+rm(list = ls())
+set.seed(0)
+n = 50
+x <- rnorm(n, mean = 4, sd = sqrt(10))
+pri_mu <- c(-3, 0, 3)
+pri_w <- rep(1/3, 3)
+tau <- 1
+pos_var <- 1/(n/10 + 1/tau)
+pos_mu <- (n*mean(x)/10 + pri_mu/1)/(n/10+1/1)
+pos_w_raw <- pri_w * exp(-(n/10 * 1/1)/(2*(n/10 + 1/1))*(mean(x)-pri_mu)^2)
+pos_w <- pos_w_raw/sum(pos_w_raw)
+
+theta_pos <- rep(NA, 10000)
+index = rmultinom(n = 10000, size = 1, prob = pos_w)
+
+for (i in 1:10000) {
+  latent <- which(index[,i]==1)
+  theta_pos[i] <- rnorm(1, mean = pos_mu[latent], sd = sqrt(pos_var) )
+}
+
+```
+
+```{r}
+hist(theta_pos, col = "lightpink", probability = TRUE, main = "Posterior Sampling Distribution")
+lines(density(theta_pos), lwd = 2, col = "red")
+```
+```{r}
+tausq_2 <- 1/(n/10 + 1/1)
+pre_w <- pos_w
+pre_var <- (1/10 + 1/tausq_2)/(1/10 * 1/tausq_2)
+pre_mu <- pos_mu
+
+y_pre <- rep(NA, 10000)
+index = rmultinom(n = 10000, size = 1, prob = pre_w)
+
+for (i in 1:10000) {
+  latent <- which(index[,i]==1)
+  y_pre[i] <- rnorm(1, mean = pre_mu[latent], sd = sqrt(pre_var) )
+}
+
+```
+
+```{r}
+hist(y_pre, col = "lightpink", probability = TRUE, main = "Posterior Predictive Distribution", ylim = c(0, sqrt(1/(2*pi*1)) ))
+lines(density(y_pre), lwd = 2, col = "red")
+lines(density(rnorm(10000, mean = 4, sd = 1)), col = "lightblue", lwd = 2)
+legend("topright", c("Predictive", "Density of N(4,1)"), col = c("red", "lightblue"), lty = c(1,1), lwd = 2)
+```
+
+
+```{r}
+#f
+rm(list = ls())
+set.seed(0)
+n = 50
+x <- rnorm(n, mean = 1.5, sd = sqrt(10))
+pri_mu <- c(-3, 0, 3)
+pri_w <- rep(1/3, 3)
+tau <- 1
+pos_var <- 1/(n/10 + 1/tau)
+pos_mu <- (n*mean(x)/10 + pri_mu/1)/(n/10+1/1)
+pos_w_raw <- pri_w * exp(-(n/10 * 1/1)/(2*(n/10 + 1/1))*(mean(x)-pri_mu)^2)
+pos_w <- pos_w_raw/sum(pos_w_raw)
+
+theta_pos <- rep(NA, 10000)
+index = rmultinom(n = 10000, size = 1, prob = pos_w)
+
+for (i in 1:10000) {
+  latent <- which(index[,i]==1)
+  theta_pos[i] <- rnorm(1, mean = pos_mu[latent], sd = sqrt(pos_var) )
+}
+
+```
+
+```{r}
+hist(theta_pos, col = "lightpink", probability = TRUE, main = "Posterior Sampling Distribution")
+lines(density(theta_pos), lwd = 2, col = "red")
+```
+```{r}
+tausq_2 <- 1/(n/10 + 1/1)
+pre_w <- pos_w
+pre_var <- (1/10 + 1/tausq_2)/(1/10 * 1/tausq_2)
+pre_mu <- pos_mu
+
+y_pre <- rep(NA, 10000)
+index = rmultinom(n = 10000, size = 1, prob = pre_w)
+
+for (i in 1:10000) {
+  latent <- which(index[,i]==1)
+  y_pre[i] <- rnorm(1, mean = pre_mu[latent], sd = sqrt(pre_var) )
+}
+
+```
+
+```{r}
+hist(y_pre, col = "lightpink", probability = TRUE, main = "Posterior Predictive Distribution", ylim = c(0, sqrt(1/(2*pi*1)) ))
+lines(density(y_pre), lwd = 2, col = "red")
+lines(density(rnorm(10000, mean = -1.5, sd = 1)), col = "lightblue", lwd = 2)
+legend("topright", c("Predictive", "Density of N(-1.5,1)"), col = c("red", "lightblue"), lty = c(1,1), lwd = 2)
+```
+
+
+
+
+
+
+#Question 7:
+
+```{r}
+
+plot(density(rbeta(10000, 1.5, 9.5)), lwd = 2, col = "red", xlim = c(-0.4, 1), ylim = c(0,5.5), main = "Laplace Approximation")
+lines(density(rnorm(10000, mean = 1/18, sd = sqrt(1/(162+7.58179)))), lwd = 2, col = "blue")
+legend("topright", c("Beta", "Normal Approximation"), col = c("red", "blue"), lty = c(1,1))
+sim_x <- rbeta(10000, 1.5, 9.5)
+
+A = matrix( c(
+c(qbeta(0.025, 1/2+1, 1/2+9),qbeta(0.975, 1/2+1, 1/2+9)),
+c(qnorm(0.025, mean = 1/18, sd = sqrt(1/(162+7.58179))),qnorm(0.975, mean = 1/18, sd = sqrt(1/(162+7.58179)))),
+c(quantile(sim_x, 0.025),quantile(sim_x, 0.975))),
+nrow = 3, ncol = 2, byrow = TRUE
+
+)
+colnames(A) <- c("2.5% Quantile","97.5 Quantile")
+rownames(A) <- c("True Beta", "Laplace", "Monte Carlo")
+knitr::kable(as.table(A), caption = "N=10, X=1")
+```
+
+
+
+```{r}
+
+n = 100
+x = 10
+
+alpha = 1/2 + x
+beta = 1/2 + n - x
+
+
+mode = (alpha-1)/(alpha + beta - 2)
+V = ((alpha-1)*(beta-1)) / (alpha+beta-2)^3
+sim_x <- rbeta(10000, alpha, beta)
+A = matrix( c(
+c(qbeta(0.025, alpha, beta),qbeta(0.975, alpha, beta)),
+c(qnorm(0.025, mean = mode, sd = sqrt(V)),qnorm(0.975, mean = mode, sd = sqrt(V))),
+c(quantile(sim_x, 0.025),quantile(sim_x, 0.975))),
+nrow = 3, ncol = 2, byrow = TRUE
+
+)
+colnames(A) <- c("2.5% Quantile","97.5 Quantile")
+rownames(A) <- c("True Beta", "Laplace", "Monte Carlo")
+knitr::kable(as.table(A), caption = "N=100, X=10")
+
+
+plot(density(rbeta(10000, alpha, beta)), lwd = 2, col = "red", main = "Laplace Approximation")
+lines(density(rnorm(10000, mean = mode, sd = sqrt(V))), lwd = 2, col = "blue")
+legend("topright", c("Beta", "Normal Approximation"), col = c("red", "blue"), lty = c(1,1))
+
+```
+```{r}
+
+n = 1000
+x = 100
+
+alpha = 1/2 + x
+beta = 1/2 + n - x
+
+
+mode = (alpha-1)/(alpha + beta - 2)
+V = ((alpha-1)*(beta-1)) / (alpha+beta-2)^3
+sim_x <- rbeta(10000, alpha, beta)
+A = matrix( c(
+c(qbeta(0.025, alpha, beta),qbeta(0.975, alpha, beta)),
+c(qnorm(0.025, mean = mode, sd = sqrt(V)),qnorm(0.975, mean = mode, sd = sqrt(V))),
+c(quantile(sim_x, 0.025),quantile(sim_x, 0.975))),
+nrow = 3, ncol = 2, byrow = TRUE
+
+)
+colnames(A) <- c("2.5% Quantile","97.5 Quantile")
+rownames(A) <- c("True Beta", "Laplace", "Monte Carlo")
+knitr::kable(as.table(A), caption = "N=100, X=10")
+
+
+plot(density(rbeta(10000, alpha, beta)), lwd = 2, col = "red", main = "Laplace Approximation", ylim = c(0,45))
+lines(density(rnorm(10000, mean = mode, sd = sqrt(V))), lwd = 2, col = "blue")
+legend("topright", c("Beta", "Normal Approximation"), col = c("red", "blue"), lty = c(1,1))
+
+```
+
+# Question 8
+
+```{r}
+#generate random number
+library(cubature)
+set.seed(1)
+cdf <- runif(500)
+sample_x <- (-log(cdf)/5)^(-1/5)
+```
+
+
+```{r}
+#Integral
+
+
+f <- function(param){
+  
+  y <- exp (
+    (n*(log(param[1])+log(param[2])) - (param[1]+1) * sum(log(sample_x)) - param[2]*sum(sample_x^(-param[1])))
+  
+  )
+  return(y)
+}
+
+g <- function(param){
+  
+ y <-  (param[1]*param[2])^length(sample_x) * (prod(sample_x))^(-param[1]-1)*exp(-param[2]*sum(sample_x^(-param[1])))
+  return(y)
+}
+
+part_2 <- adaptIntegrate(f, lowerLimit = c(0,0), upperLimit = c(Inf,Inf))
+
+
+
+
+h <- function(param){
+  
+  y <- n*(log(param[1])+log(param[2])) - (param[1]+1) * sum(log(sample_x)) - param[2]*sum(sample_x^(-param[1]))
+  return(y)
+
+}
+
+
+```
+
+```{r warning=FALSE}
+para <- c(5.5,5)
+alpha <- para[1]
+beta <- para[2]
+n <- length(sample_x)
+
+```
+# opt <- optim(c(5,5), f)
+
+# para <- opt$par
+
+```{r warning=FALSE}
+hes_11 <- -n/alpha - beta*log(alpha)^2*sum(sample_x^(-alpha))
+hes_12 = hes_21 <- log(alpha) * sum(sample_x^(-alpha))
+hes_22 <- -n/beta^2
+hess <- matrix(c(hes_11, hes_12, hes_21, hes_22),2, 2, byrow = TRUE)
+inv_hess <- matrix(-c(hes_22, hes_21, hes_12, hes_11)/det(hess),2,2, byrow = TRUE)
+```
+
+
+
+
+```{r}
+pos_true <- function(param){
+  y = 1/(1.22e-79) * f(param)
+}
+
+pos_laplace <- function(param){
+ p <- mvtnorm::dmvnorm(param, mean = c(alpha, beta), sigma = inv_hess)
+}
+
+alpha_seq <- seq(from = 0.01, to = 10, 0.01)
+beta_seq <- seq(from = 0.01, to = 10, 0.01)
+diff <- matrix(NA, length(alpha_seq), length(beta_seq))
+for (i in 1:length(alpha_seq)) {
+  for (j in 1:length(beta_seq)) {
+   diff[i,j] <- pos_true(c(alpha_seq[i], beta_seq[j])) - pos_laplace(c(alpha_seq[j], beta_seq[j]))
+    
+  }
+  
+}
+
+
+
+```
+
+```{r}
+hist(diff, probability  = T, nclass = 20)
+summary(as.vector(diff))
+```
+
+# Question 9
+
+```{r}
+# e.i
+set.seed(0)
+n = 1000
+theta_0 <- 5
+k0 <- 0.1
+alpha = 11
+beta = 10
+
+
+sample_x <- rnorm(n, mean = 5, sd = 1)
+xbar <- mean(sample_x)
+s2 <- sum((sample_x - mean(sample_x))^2)
+sigma_inv <- rgamma(10000, shape = alpha, rate = beta)
+sigma = 1/sigma_inv
+
+sigma_pos_inv <- rgamma(10000, shape = alpha + n/2, rate =  beta + s2/2 + n*(xbar-theta_0)^2/(2*(1+k0*n)) ) 
+sigma_pos <- 1/sigma_pos_inv
+
+plot(density(sigma), main = "Marginal Distribution for Sigma^2", lwd = 2, ylim = c(0, 9))
+lines(density(sigma_pos), col = "red", lwd = 2)
+legend("topright", c("Prior", "Posterior"), col = c("black", "red"), lty = c(1,1))
+
+
+pos_mu_raw <- rt(10000, df = 2*alpha + n)
+pos_mu <- sqrt( 
+  (k0*n + 1)*(k0*s2 +  k0*n*(theta_0-xbar)^2/(k0*n+1)  ) / (2*alpha + n)
+                ) * pos_mu_raw + (k0*n*xbar + theta_0)/(k0*n+1)
+
+plot(density(pos_mu), lwd = 2, main = "Marginal Posterior Distribution of Theta", ylim = c(0,0.4), col = "red")
+lines(density(rnorm(10000, mean = 5, sd = 1)), lwd = 2)
+
+legend("topright", c("Sampling Distribution", "Posterior"), col = c("black", "red"), lty = c(1,1))
+
+```
+
+```{r}
+# e.ii
+set.seed(0)
+n = 1000
+theta_0 <- 5
+k0 <- 0.1
+alpha = 0.1
+beta = 0.1
+
+
+sample_x <- rnorm(n, mean = 5, sd = 1)
+xbar <- mean(sample_x)
+s2 <- sum((sample_x - mean(sample_x))^2)
+sigma_inv <- rgamma(10000, shape = alpha, rate = beta)
+sigma = 1/sigma_inv
+
+sigma_pos_inv <- rgamma(10000, shape = alpha + n/2, rate =  beta + s2/2 + n*(xbar-theta_0)^2/(2*(1+k0*n)) ) 
+sigma_pos <- 1/sigma_pos_inv
+
+plot(density(sigma), main = "Marginal Distribution for Sigma^2", lwd = 2, ylim = c(0, 9), xlim = c(0,5))
+lines(density(sigma_pos), col = "red", lwd = 2)
+legend("topright", c("Prior", "Posterior"), col = c("black", "red"), lty = c(1,1))
+
+
+pos_mu_raw <- rt(10000, df = 2*alpha + n)
+pos_mu <- sqrt( 
+  (k0*n + 1)*(k0*s2 +  k0*n*(theta_0-xbar)^2/(k0*n+1)  ) / (2*alpha + n)
+                ) * pos_mu_raw + (k0*n*xbar + theta_0)/(k0*n+1)
+
+plot(density(pos_mu), lwd = 2, main = "Marginal Posterior Distribution of Theta", ylim = c(0,0.4), col = "red")
+lines(density(rnorm(10000, mean = 5, sd = 1)), lwd = 2)
+
+legend("topright", c("Sampling Distribution", "Posterior"), col = c("black", "red"), lty = c(1,1))
+
+```
+
+```{r}
+# e.iv
+set.seed(0)
+n = 1000
+theta_0 <- 5
+k0 <- 0.2
+alpha = 0.1
+beta = 0.1
+
+
+sample_x <- rnorm(n, mean = 5, sd = 1)
+xbar <- mean(sample_x)
+s2 <- sum((sample_x - mean(sample_x))^2)
+sigma_inv <- rgamma(10000, shape = alpha, rate = beta)
+sigma = 1/sigma_inv
+
+sigma_pos_inv <- rgamma(10000, shape = alpha + n/2, rate =  beta + s2/2 + n*(xbar-theta_0)^2/(2*(1+k0*n)) ) 
+sigma_pos <- 1/sigma_pos_inv
+
+plot(density(sigma), main = "Marginal Distribution for Sigma^2", lwd = 2, ylim = c(0, 9), xlim = c(0,5))
+lines(density(sigma_pos), col = "red", lwd = 2)
+legend("topright", c("Prior", "Posterior"), col = c("black", "red"), lty = c(1,1))
+
+
+pos_mu_raw <- rt(10000, df = 2*alpha + n)
+pos_mu <- sqrt( 
+  (k0*n + 1)*(k0*s2 +  k0*n*(theta_0-xbar)^2/(k0*n+1)  ) / (2*alpha + n)
+                ) * pos_mu_raw + (k0*n*xbar + theta_0)/(k0*n+1)
+
+plot(density(pos_mu), lwd = 2, main = "Marginal Posterior Distribution of Theta", col = "red")
+lines(density(rnorm(10000, mean = 5, sd = 1)), lwd = 2)
+
+legend("topright", c("Sampling Distribution", "Posterior"), col = c("black", "red"), lty = c(1,1))
+
+```
+
+
+```{r}
+# f.i
+set.seed(0)
+n = 1000
+theta_0 <- 5
+k0 <- 0.1
+alpha = 111
+beta = 110
+
+
+sample_x <- rnorm(n, mean = 5, sd = 1)
+xbar <- mean(sample_x)
+s2 <- sum((sample_x - mean(sample_x))^2)
+sigma_inv <- rgamma(10000, shape = alpha, rate = beta)
+sigma = 1/sigma_inv
+
+sigma_pos_inv <- rgamma(10000, shape = alpha + n/2, rate =  beta + s2/2 + n*(xbar-theta_0)^2/(2*(1+k0*n)) ) 
+sigma_pos <- 1/sigma_pos_inv
+pos_mu <- rep(NA, 10000)
+
+for (i in 1:10000) {
+  pos_mu[i] <- rnorm(1, mean = (theta_0 + k0*n*xbar) / (1+k0*n), sd = sqrt( k0*sigma_pos[i]/(1+k0*n) ) )
+}
+ita <- pos_mu/sqrt(sigma_pos)
+
+int_1 <- c(quantile(ita, 0.025), quantile(ita, 0.975))
+
+
+```
+
+
+```{r}
+# f.ii
+set.seed(0)
+n = 1000
+theta_0 <- 5
+k0 <- 0.1
+alpha = 0.1
+beta = 0.1
+
+
+sample_x <- rnorm(n, mean = 5, sd = 1)
+xbar <- mean(sample_x)
+s2 <- sum((sample_x - mean(sample_x))^2)
+sigma_inv <- rgamma(10000, shape = alpha, rate = beta)
+sigma = 1/sigma_inv
+
+sigma_pos_inv <- rgamma(10000, shape = alpha + n/2, rate =  beta + s2/2 + n*(xbar-theta_0)^2/(2*(1+k0*n)) ) 
+sigma_pos <- 1/sigma_pos_inv
+pos_mu <- rep(NA, 10000)
+
+for (i in 1:10000) {
+  pos_mu[i] <- rnorm(1, mean = (theta_0 + k0*n*xbar) / (1+k0*n), sd = sqrt( k0*sigma_pos[i]/(1+k0*n) ) )
+}
+ita <- pos_mu/sqrt(sigma_pos)
+
+int_2 <- c(quantile(ita, 0.025), quantile(ita, 0.975))
+
+
+```
+
+```{r}
+# f.iii
+set.seed(0)
+n = 1000
+theta_0 <- 5
+k0 <- 2
+alpha = 111
+beta = 110
+
+
+sample_x <- rnorm(n, mean = 5, sd = 1)
+xbar <- mean(sample_x)
+s2 <- sum((sample_x - mean(sample_x))^2)
+```
+
+
+```{r}
+sigma_inv <- rgamma(10000, shape = alpha, rate = beta)
+sigma = 1/sigma_inv
+
+sigma_pos_inv <- rgamma(10000, shape = alpha + n/2, rate =  beta + s2/2 + n*(xbar-theta_0)^2/(2*(1+k0*n)) ) 
+sigma_pos <- 1/sigma_pos_inv
+pos_mu <- rep(NA, 10000)
+
+for (i in 1:10000) {
+  pos_mu[i] <- rnorm(1, mean = (theta_0 + k0*n*xbar) / (1+k0*n), sd = sqrt( k0*sigma_pos[i]/(1+k0*n) ) )
+}
+ita <- pos_mu/sqrt(sigma_pos)
+
+int_3 <- c(quantile(ita, 0.025), quantile(ita, 0.975))
+
+
+```
+
+```{r}
+# f.iv
+set.seed(0)
+n = 1000
+theta_0 <- 5
+k0 <- 2
+alpha = 0.1
+beta = 0.1
+
+
+sample_x <- rnorm(n, mean = 5, sd = 1)
+xbar <- mean(sample_x)
+s2 <- sum((sample_x - mean(sample_x))^2)
+sigma_inv <- rgamma(10000, shape = alpha, rate = beta)
+sigma = 1/sigma_inv
+
+sigma_pos_inv <- rgamma(10000, shape = alpha + n/2, rate =  beta + s2/2 + n*(xbar-theta_0)^2/(2*(1+k0*n)) ) 
+sigma_pos <- 1/sigma_pos_inv
+pos_mu <- rep(NA, 10000)
+
+for (i in 1:10000) {
+  pos_mu[i] <- rnorm(1, mean = (theta_0 + k0*n*xbar) / (1+k0*n), sd = sqrt( k0*sigma_pos[i]/(1+k0*n) ) )
+}
+ita <- pos_mu/sqrt(sigma_pos)
+
+int_4 <- c(quantile(ita, 0.025), quantile(ita, 0.975))
+
+
+```
+
+
+
+```{r}
+B <- matrix(c(int_1, int_2, int_3, int_4), nrow = 4, ncol = 2,  byrow = TRUE)
+rownames(B) <- c("Case 1", "Case 2", "Case 3", "Case 4")
+colnames(B) <- c("2.5% Quantile", "97.5% Quantile")
+knitr::kable(B, caption = "Ratio of Mean to SD for 4 Cases")
+```
+

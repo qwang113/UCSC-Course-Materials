@@ -1,0 +1,243 @@
+---
+title: "STATS_204_HW5"
+author: "Qi Wang"
+output:
+  pdf_document: 
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+\noindent 
+Question 1: 
+There are both continuous variable and categorical variable in this data set. For pnr, it is just the ID of the observation, and three categories in type, 2 categories in preg and dead. The gvhd is the response variable and it is also categorical, so we need to fit a logistic regression. Here is the range and distribution of the continuous variable.
+```{r}
+rm(list = ls())
+library(ISwR)
+library(car)
+data1 <- graft.vs.host
+summary(data1[,c(2,3,6,8)])
+corrplot::corrplot(cor(data1[,2:ncol(data1)]))
+```
+First, I will use VIF to check whether there are some correlations among the variables.
+
+
+
+
+Now I will first use the non-transformed index to fit the regression:
+```{r}
+M1 <- glm(gvhd ~ rcpage + donage  + preg + index  + dead + time + factor(type) , family = binomial(link = "logit"), data = data1, maxit = 100)
+barplot(vif(M1)[,3], main = "VIF Values", horiz = TRUE, col = "steelblue", las = 2)
+```
+It is obvious that the time type and dead has large VIF, I will first delete the variable time from the model:
+
+```{r}
+M1_time <- glm(gvhd ~ rcpage + donage  + preg + index + dead + factor(type), family = binomial(link = "logit"), data = data1, maxit = 100)
+barplot(vif(M1_time)[,3], main = "VIF Values", horiz = TRUE, col = "steelblue", las = 2)
+```
+There are still co-linearity exists, and we need to delete the dead variable from the model:
+
+```{r}
+M1_best_base <- glm(gvhd ~ rcpage + donage  + preg + index + factor(type), family = binomial(link = "logit"), data = data1, maxit = 100)
+barplot(vif(M1_best_base)[,3], main = "VIF Values", horiz = TRUE, col = "steelblue", las = 2)
+```
+Here the VIF seems nice and almost no co-linearity exists in the model. Now I will use step function to make model selection based on the left variables, the left variables are index, preg and donage
+```{r}
+#step(M1_best_base)
+M1_best <- glm(gvhd ~  donage + preg  + index, family = binomial(link = "logit"), data = data1, maxit = 100)
+summary(M1_best)
+```
+In the residual plot as follows, we can see almost no trend exists in the model. The residual deviance is around 30 and not that big. 
+```{r}
+plot(rstudent(M1_best, type = "pearson"), pch = 19, ylab = "Residuals")
+```
+
+
+
+Now let's try the logarithm of index. First steps are similar since we still need to delete the variables that have strong co-linearity.
+
+```{r}
+
+M2 <- glm(gvhd ~ rcpage + donage  + preg + log(index)  + dead + time + factor(type) , family = binomial(link = "logit"), data = data1, maxit = 100)
+barplot(vif(M2)[,3], main = "VIF Values", horiz = TRUE, col = "steelblue", las = 2)
+```
+We still need to delete the time variable:
+
+```{r}
+
+M2_time <- glm(gvhd ~ rcpage + donage  + preg + log(index)  + dead + factor(type) , family = binomial(link = "logit"), data = data1, maxit = 100)
+barplot(vif(M2_time)[,3], main = "VIF Values", horiz = TRUE, col = "steelblue", las = 2)
+```
+Then we should delete the dead variable, too.
+
+```{r}
+
+M2_time_dead <- glm(gvhd ~ rcpage + donage  + preg + log(index) + factor(type) , family = binomial(link = "logit"), data = data1, maxit = 100)
+barplot(vif(M2_time_dead)[,3], main = "VIF Values", horiz = TRUE, col = "steelblue", las = 2)
+```
+Now it shows no coliearity, so let's do the model selection:
+
+```{r}
+#step(M2_time_dead)
+M2_best <- glm(gvhd ~ donage  + log(index) , family = binomial(link = "logit"), data = data1, maxit = 100)
+summary(M2_best)
+```
+This model has smaller AIC than the before one, then let's check the residuals:
+
+```{r}
+plot(rstudent(M2_best, type = "pearson"), pch = 19, ylab = "Residuals")
+```
+There still seems to be no trend and the residual deviance is close to the degrees of freedom. 
+
+Question 2:
+
+(a)
+
+```{r}
+library(ISLR)
+data2 <- Weekly
+summary(Weekly)
+```
+For variable Volume, the maximum is too large and far from the median and even 3rd quantile. 
+```{r}
+par(mfrow = c(2,4))
+boxplot(Lag1 ~ Direction, data = data2, col = c("lightblue", "lightpink"))
+boxplot(Lag2 ~ Direction, data = data2, col = c("lightblue", "lightpink"))
+boxplot(Lag3 ~ Direction, data = data2, col = c("lightblue", "lightpink"))
+boxplot(Lag4 ~ Direction, data = data2, col = c("lightblue", "lightpink"))
+boxplot(Lag5 ~ Direction, data = data2, col = c("lightblue", "lightpink"))
+boxplot(Volume ~ Direction, data = data2, col = c("lightblue", "lightpink"))
+boxplot(Today ~ Direction, data = data2, col = c("lightblue", "lightpink"))
+boxplot(Year ~ Direction, data = data2, col = c("lightblue", "lightpink"))
+```
+From the box plot, there mean of the group up are higher than that of the group down. For other variables the difference are not that significant.
+
+
+(b)
+
+```{r}
+M_week <- glm(Direction ~ .- Year - Today, data = data2, family = binomial(link = "logit"))
+summary(M_week)
+```
+It seems that the Lag2 is significant at 0.05 level, but other variables seem not to be significant. 
+
+(c)
+
+```{r}
+library(caret)
+prob <- predict(M_week, type = "response")
+pre_dir <- ifelse(prob >= 0.5, "Up", "Down")
+attach(data2)
+table(pre_dir, Direction)
+```
+So the true fraction is:
+```{r}
+mean(pre_dir == data2$Direction)
+```
+The model does not perform well, it predicts most of the probability over 0.5 and give most of the predictions "Up". The right upper number 48 means that there are 48 wrong predictions whose true value is "Up" but the model predicts them as "down". The lower left number 430 means that there are 430 wrong predictions whose tru value is "Down", but our model predicted it as "Up".
+
+
+(d)
+
+```{r}
+dat_tr <- data2[which(data2$Year >= 1990 & data2$Year <= 2008), c(3,9)]
+dat_te <- data2[which(data2$Year >= 2009 & data2$Year <= 2010), c(3,9)]
+M_tr <- glm(Direction ~ Lag2, family = binomial(link = "logit"), data = dat_tr)
+pre_prob <- predict(M_tr, newdata = data.frame(Lag2 = dat_te$Lag2), type = "response")
+pre_direction <- ifelse(pre_prob >= 0.5, "Up", "Down")
+attach(dat_te)
+table(pre_direction, Direction)
+```
+The overall fraction of correct predictions are:
+
+```{r}
+mean(pre_direction == Direction)
+```
+The rate is rising a little.
+
+
+Question 3:
+(a)
+```{r}
+data3 <- Auto
+mpg01 <- ifelse(data3$mpg >= median(data3$mpg), 1, 0)
+
+data3_new <- data.frame(mpg01 = mpg01, cylinders = Auto$cylinders, displacement = Auto$displacement,
+                        horsepower = Auto$horsepower, weight = Auto$weight, acceleration = Auto$acceleration,
+                        year = Auto$year, origin = Auto$origin, name = Auto$name)
+```
+(b)
+
+```{r}
+par(mfrow = c(1,3))
+
+boxplot(cylinders ~ mpg01, data = data3_new, col = c("lightblue","lightpink"))
+boxplot(displacement~ mpg01, data = data3_new, col = c("lightblue","lightpink"))
+boxplot(year~ mpg01, data = data3_new, col = c("lightblue","lightpink"))
+```
+
+```{r}
+par(mfrow = c(1,3))
+boxplot(horsepower ~ mpg01, data = data3_new, col = c("lightblue","lightpink"))
+boxplot(weight ~ mpg01, data = data3_new, col = c("lightblue","lightpink"))
+boxplot(acceleration ~ mpg01, data = data3_new, col = c("lightblue","lightpink"))
+```
+From the box plot, we can see that for those cars which mpg is less than the median, they tend to have more cylinders, more displacements, more horsepower more weight and less acceleration. I believe cylinders, displacements, horsepower and weight may be most useful ones in predicting the mpg.
+
+
+
+(c)
+
+I will randomly select 80% of the data without replacement as the training data set and the rest are the test data set.
+
+```{r}
+index <- sample(1:nrow(data3_new), round(0.8*nrow(data3_new)), replace = F)
+data3_new_tr <- data3_new[index,]
+data3_new_te <- data3_new[-index,]
+```
+
+(f)
+I will include all the variables and then use AIC criteria to do model selection.
+
+```{r}
+M_mpg <- glm(mpg01 ~ cylinders + displacement + horsepower + weight + acceleration + year, data = data3_new_tr, family = binomial(link = "logit"))
+summary(M_mpg)
+```
+And I will use the step wise AIC criteria to do the model selection:
+
+```{r}
+#step(M_mpg)
+M_mpg_tr <- glm(mpg01 ~ displacement + horsepower + weight  + year, data = data3_new_tr, family = binomial(link = "logit"))
+summary(M_mpg_tr)
+```
+Here is the confusion matrix:
+```{r}
+pred_prob <- predict(M_mpg_tr, newdata = data.frame(displacement = data3_new_te$displacement, horsepower = data3_new_te$horsepower,
+                                                    weight = data3_new_te$weight, year = data3_new_te$year))
+pred_mpg <- ifelse(pred_prob >= 0.5, 1, 0)
+
+Real <- data3_new_te$mpg01
+table(Predicted = pred_mpg, Real)
+```
+Therefore, the percentage of correctly predicted data are:
+```{r}
+mean(pred_mpg == Real)
+```
+Therefore, the error rate fot the prediction is:
+
+```{r}
+1-mean(pred_mpg == Real)
+```
+```{r}
+plot(residuals(M_mpg_tr), pch = 19, ylab = "Residuals")
+```
+Residuals seem nice. And prediction is nice. 
+
+
+
+
+
+
+
+
+

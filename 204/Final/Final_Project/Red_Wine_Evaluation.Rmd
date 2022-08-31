@@ -1,0 +1,355 @@
+---
+geometry: "margin=0.8in"
+bibliography: red_wine.bib
+output: 
+  pdf_document:
+    latex_engine: xelatex   
+documentclass: asaproc
+header-includes:
+    - \usepackage{setspace}
+    - \singlespacing
+    - \usepackage{bm}
+    - \usepackage{graphics}
+---
+
+```{r global_options, include=FALSE}
+    rm(list = ls())
+    knitr::opts_chunk$set(fig.width=12, 
+    fig.height=8, fig.path='./Figs/',echo=FALSE,  warning=FALSE, message=FALSE)
+    library(knitr)
+    library(ggplot2)
+    library(corrplot)
+    library(tidyverse)
+    library(magrittr)
+```
+\title{Red Wine Quality Evaluation}
+
+\author{Qi Wang$^1$, Author Name$^2$\\
+Department of Statistics, University of California, Santa Cruz$^1$\\
+Second Author Affiliation$^2$}
+ 
+\maketitle
+
+
+\section*{Abstract}
+
+
+DDDDDDDDDDD
+
+
+\begin{keywords}
+Logistic regression, Classification, Red wine quality
+\end{keywords}
+
+
+\section*{1. Introduction}
+
+\subsection*{1.1 Background Information}
+
+
+Wine, maybe the oldest drink that its secret recipes, has been passed to us through centuries by our ancient. Like everything else, wineries are looking to evolve the way they are making wine and apply technology and innovations to this most popular drink in the world. To study more about this subject, the wine data collect  from the north-west region, named Minho, of Portugal, and this data set is available from the UCI machine learning repository (UCI, 2015). It has been proposed for both, regression and classification, by Cortez et al. (2009). Cortez et al  proposed a data mining approach to predict human wine taste preferences. Three regression techniques were applied, under a computationally efficient procedure that performs simultaneous variable and model selection[@redwine]. Such model is useful to support the oenologist wine tasting evaluations and improve wine production. Later, Agyemang  presents an analysis to extend what Cortez et al  accomplished by using two logistic regression approaches to predict human wine taste preferences with the goal of better predictions[@cite_2]. Nebot et al used  hybrid fuzzy logic techniques to predict human wine test preferences based on physicochemical properties from wine analyses [@cite_3]. The fuzzy technique result presents a better performance rather than other data mining techniques previously applied to the same data set, such are neural networks, support vector machines and multiple regression.   Recently, Angus try to  find out if it is possible to predict what score a wine would be given based on its chemical properties and wine testers’ opinion on the wine quality [@cite_4]. The result opens up the possibility of assigning wine score without the use of wine testers.
+
+
+
+
+\subsection*{1.2 Data Source and Description}
+In this paper, we are going to talk about how to make an evaluation of red wine based on several indexes in the data set. We are using R to make some descriptive statistics and analyzing with logistic regression methods to evaluate the most important index affecting the equality of wine. The data we used is from UCI machine learning repository, and originally from Paulo Cortez, University of Minho, Guimarães, Portugal, http://www3.dsi.uminho.pt/pcortez.
+
+
+
+
+There are 11 covariates and one categorical response variable. Fix acidity is the most acids involved with wine or fixed or nonvolatile (do not evaporate readily). Volatile acidity is the amount of acetic acid in wine, which at too high of levels can lead to an unpleasant, vinegar taste. Citric acid is the most important organic acid produced in tonnage by fermentation, with a taste of sour like lemons [@citric_acid]. Residual sugar is the amount of sugar left in a wine, to some extent, it measures the sweetness of a wine. Chlorides is a key role in the salty taste of a wine, which will make customers feel uncomfortable. Sulfur dioxide $(SO_2)$ is important in the winemaking process as it aids in preventing microbial growth and the oxidation of wine [@sulfur_diox]. The difference between free sulfur dioxide and total sulfur dioxide is the way of measuring them. Gaseous SO2 is released from the sample by addition of acid and swept into the ICP by an argon stream. The intensity of the sulfur atomic emission lines is measured in the vacuum UV region. Determination of total $SO_2$  is performed after hydrolysis of bound forms with sodium hydroxide $(NaOH)$[@test_sulfur]. For sulfates, many experts believe that higher sulfurous content causes a duller taste in wine, and that high potency of sulfite ions presents a health risk and speeds up the wine's fermentation process. The other covariates including alcohol, pH and density are basically simple indexes of a red wine. Our response variable is an ordered categorical variable indicating the quality of red wine, from 0 to 10.
+
+
+
+
+\section*{2. Data Cleaning and Variable Properties}
+
+```{r} 
+library(here)
+red_wine_middle_all <- read.csv(here::here("winequality.csv"), header = T, sep = ";")
+name1 <- colnames(red_wine_middle_all)
+name2 <- c("fac","vac","cac","res","cho","fsu","tsu","den","pH","sul","alc","Q")
+colnames(red_wine_middle_all) <- name2
+red_wine_middle <- red_wine_middle_all[1:1200,]
+```
+
+
+
+\subsection{2.1 Variable Transformation}
+
+First, renaming the variables into shorter words for further convenience to analysis by selecting several letters from each word in the phrases. In table \ref{tab:vtrans}, there are two columns which indicates the original variable names and its transformed names.
+
+```{r vtrans, echo=FALSE}
+tab <- data.frame(cbind(name1, name2))
+
+kable(tab, col.names = c("Original", "Transformed"), format = 'latex', align = 'c', caption = "Name Transformation")
+```
+
+
+```{r freq, fig.align='center', fig.cap="Mosaic Plot of Frequency"}
+mosaicplot(table(red_wine_middle_all$Q), main = "Frequency in Each Level", color = c("lightblue","lightpink","lightgreen","lightyellow","lightcyan","lightgray"))
+```
+ 
+Then, the most important step is to find a proper method to combine 10 groups into 2 groups.Since the quality is ordinal, and the frequency of data in each group is as follows in figure \ref{fig:freq} and table \ref{tab:freqtab}.  From the table and the plot, most of the wines fall in quality level 5 and quality level 6. We will do three models to make better interpretation of the important parameters that affect the level of the wine. If we divide the data from the middle, that will be helpful for interpret the common criteria for red wine. However, if someone wants to distinguish those red wines with very perfect quality or very poor quality, I will also divide data in other ways, which I will talk more about it later. But the basic models we are talking about is the first case, in which I make the number of red wine in each group almost the same.
+ So it is a good way to divide them into 2 groups by this criteria:
+$$Y_{i,new}=0, \ if \ \  Y_{i,data} \leq k $$
+and 
+$$Y_{i,new}=1, \ if \ \  Y_{i,data} > k $$
+In this way, we transformed the data from six levels into two levels so that we can make further logistic regression. Here, by setting different k values, we get different ways to separate the data, and we have three kinds of dividing data set. The first one is just set $k=5$, which means we separate them in the middle and we want to know how to overall evaluate the quality of the red wine. The other ways are setting $k=4$ or $k=6$, which means we want to specify poor quality wines and excellent quality wines. For EDA parts we are using the case that $k=5$ to make some basic conclusions since the length of the report is restricted, but later in the model part, all the three ways of division are included. And we are using first 1200 observations to fit the model and the rest 316 observations to make predictions.
+
+
+
+
+
+
+
+```{r freqtab, echo=FALSE}
+kable(table(red_wine_middle$Q), col.names = c("Level","Count"), format = "latex", caption = "Frequency in Each Level")
+```
+
+
+
+\subsection{2.2 Variable Properties Exploration}
+
+
+
+From the definition of independent variables mentioned above, there could be some inner relationship among them for example the different kinds of acidity and different kinds of sulfur dioxide. To begin with, here is a correlated plot and pairs plot.
+
+```{r cor, fig.align='center', fig.cap="Correlation Plot of Indepedent Variables"}
+
+correlate <- cor(red_wine_middle[,1:ncol(red_wine_middle)-1])
+rownames(correlate) <- c("Fixed Acidity","Volatile Acidity","Citric Acid" , "Residual Sugar", "Chlorides", "Free Sulfur Dioxide", 
+                         "Total Sulfur Dioxide", "Density","pH","Sulphates","Alcohol")
+colnames(correlate) <- c("Fixed Acidity","Volatile Acidity","Citric Acid" , "Residual Sugar", "Chlorides", "Free Sulfur Dioxide", 
+                         "Total Sulfur Dioxide", "Density","pH","Sulphates","Alcohol")
+col1 = colorRampPalette(c('skyblue2','white', 'orangered')) 
+corrplot(correlate , order = 'AOE', 
+         col = col1(10), bg = 'lightgrey', method = 'square',tl.cex = 1, type = "lower",tl.col = "black", tl.srt = 11)
+```
+From the chart \ref{fig:cor}, we can see there are some strong inner relationship between the independent variables. To begin with, citric acid amount is strongly positively correlated with fixed acidity. And fixed acidity is also strongly positively correlated with the density of the wine. Researches have shown that the citric acid has an effect on the acidity of the liquid, and a more concentration of citric acid means a stronger acidity [@acid].
+Also, the amount of free sulfur dioxide is positively correlated with the amount of total sulfur dioxide. However, there are still some negative correlations among variables. For example, the pH of the red wine is negatively correlated with the fixed acidity and the amount of citric acid in the wine. From common sense, we know a stronger acidity means a lower pH, that's why the pH is lower for those wine with more concentration of fixed acidity and citric acid. Also, larger concentration of alcohol gives a smaller density. As we know, the density of alcohol is smaller than water, so if more alcohol is included in the wine, the density must be lower than those without that much alcohol.
+Therefore, when we are doing the exploratory data analysis, we can care just several specific dependent variables. Citric acid, sulphates, density, residual sugar, total sulfur dioxide, and alcohol. Later, after constructing a base model, further model selection will be conducted by adding or subtracting variables to or from the base model.
+
+
+
+\section*{3. Exploratory Data Analysis}
+
+\subsection*{3.1 One variable boxplot}
+
+In this subsection, we are going to show some basic one variable box plot for the selected variables I mentioned above. Then the relationship between the quality of red wine and the selected variables will be more obvious. From figure \ref{fig:box}, not all the variables seem to have a very obvious difference between them. For example, the density, residual sugar, and total sulfur dioxide seem almost the same for the wine with high quality and poor quality. However, the citric acid, sulphates and alcohol concentration seems more significant. Those red wine with higher quality seem to have greater concentration on citric acid, sulphates and alcohol. However, there seems to be several outliers for total sulfur dioxide in the graph, and for residual sugar, the data set seems so sparse that the height of each box is too small, which makes it hard to observe the further information. 
+In all, the difference between the groups is not so significant, but we can specify some information from the box plots. 
+
+
+```{r box, fig.align='center', fig.cap="Boxplot of Variables"}
+library(here)
+red_wine_middle_all <- read.csv(here::here("winequality.csv"), header = T, sep = ";")
+name1 <- colnames(red_wine_middle)
+name2 <- c("fac","vac","cac","res","cho","fsu","tsu","den","pH","sul","alc","Q")
+colnames(red_wine_middle_all) <- name2
+red_wine_middle_all <- cbind(1:nrow(red_wine_middle_all),red_wine_middle_all)
+colnames(red_wine_middle_all)[1] <- "ID"
+red_wine_middle_all$Q <- ifelse(red_wine_middle_all$Q <=5, 0, 1) 
+red_wine_middle <- red_wine_middle_all[1:1200,]
+red_wine_middle_test <- red_wine_middle_all[1201:nrow(red_wine_middle_all),]
+
+attach(red_wine_middle)
+
+
+par(mfrow = c(2,3))
+col_quality = c("lightblue", "lightpink")
+boxplot(cac~Q, xlab = "Quality", col = col_quality, ylab = "Citric Acid")
+boxplot(sul~Q, xlab = "Quality", col = col_quality, ylab = "Sulphates")
+boxplot(den~Q, xlab = "Quality", col = col_quality, ylab = "Density")
+boxplot(res~Q, xlab = "Quality", col = col_quality, ylab = "Residual Sugar")
+boxplot(tsu~Q, xlab = "Quality", col = col_quality, ylab = "Total Sulfur Dioxide")
+boxplot(alc~Q, xlab = "Quality", col = col_quality, ylab = "Alcohol")
+```
+\subsection*{3.2 t-test for Significance}
+
+From section 3.1, we have seen some differences of indexes between different wine quality groups. However, we cannot have a statistical significance measurement of each variable. Here, we are carrying out a t test for checking the significance. Here we only compare one variable for one time and don't consider the colinearity between variables. 
+
+```{r test_t}
+int_cac <- t.test(cac[which(Q==1)], cac[which(Q==0)])$conf.int
+int_sul <- t.test(sul[which(Q==1)], sul[which(Q==0)])$conf.int
+int_den <- t.test(den[which(Q==1)], den[which(Q==0)])$conf.int
+int_res <- t.test(res[which(Q==1)], res[which(Q==0)])$conf.int
+int_tsu <- t.test(tsu[which(Q==1)], tsu[which(Q==0)])$conf.int
+int_alc <- t.test(alc[which(Q==1)], alc[which(Q==0)])$conf.int
+int_all <- rbind(int_cac, int_sul, int_den, int_res, int_tsu, int_alc)
+
+p_cac <- t.test(cac[which(Q==1)], cac[which(Q==0)])$p.value
+p_sul <- t.test(sul[which(Q==1)], sul[which(Q==0)])$p.value
+p_den <- t.test(den[which(Q==1)], den[which(Q==0)])$p.value
+p_res <- t.test(res[which(Q==1)], res[which(Q==0)])$p.value
+p_tsu <- t.test(tsu[which(Q==1)], tsu[which(Q==0)])$p.value
+p_alc <- t.test(alc[which(Q==1)], alc[which(Q==0)])$p.value
+p_all <- c(p_cac, p_sul, p_den, p_res, p_tsu, p_alc)
+
+alpha <- cbind(round(int_all,3), round(p_all,2)) 
+rownames(alpha) <- c("Citric Acid", "Sulphates","Density" , "Residual Sugar","Total Sulfur Dioxide", "Alcohol")
+colnames(alpha) <- c(".95 CI[L]", ".95 CI[U]", "p-value")
+knitr::kable(alpha, format = "latex", caption = "t Test among Different Groups")
+```
+
+From the table \ref{tab:test_t}, we can see that citric acid, sulphates total sulfur dioxide, density and alcohol are significantly different among the two groups. However, the residual sugar seems not that significant. In other words, better red wines seem to have more citric acid, alcohol and sulphates concentration. Also, since the density of alcohol is less than water, the density is smaller according to our guess, which has been verified here. Another result worth discussing is the total sulfur dioxide, it is a harmful content for us, which seems to be less in red wine with better qualities. However, sulphates are also harmful to human's health, why does higher quality red wines have more sulphates? As we can see from the table, the difference is not so much, although it is significant. As the saying goes, it is impossible to discuss the poison without considering the dosage. We will discuss more in the model selection and regression part.
+
+
+\subsection*{3.3 Outliers Detecting}
+
+Then, I will check whether there is outliers among these variables, I will use the strip chart to show an overview of the variable distribution.
+
+
+```{r outlier, fig.align='center', fig.cap="Check for Outlier"}
+par(mfrow = c(2,3))
+stripchart(cac ~ Q, method = "jitter", pch = 19, col = col_quality, xlab = "Citric Acid", ylab = "Quality")
+text(x = 0.9, y = 1, "152")
+stripchart(sul ~ Q, method = "jitter", pch = 19, col = col_quality, xlab = "Sulphates", ylab = "Quality")
+text(x = 1.9, y = 1.9, "87, 92")
+text(x = 1.9, y = 1.1, "93")
+text(x = 1.9, y = 0.85, "152")
+stripchart(den ~ Q, method = "jitter", pch = 19, col = col_quality, xlab = "Density", ylab = "Quality")
+stripchart(res ~ Q, method = "jitter", pch = 19, col = col_quality, xlab = "Residual Sugar", ylab = "Quality")
+stripchart(tsu ~ Q, method = "jitter", pch = 19, col = col_quality, xlab = "Total Sulfur Dioxide", ylab = "Quality")
+text(x = 280, y = 1.9, "1082")
+text(x = 250, y = 2.1, "1080")
+
+
+stripchart(alc ~ Q, method = "jitter", pch = 19, col = col_quality, xlab = "Alcohol", ylab = "Quality")
+text(x = 14.5, y = 1, "653")
+```
+After checking the data for these outliers in figure \ref{fig:outlier}, since the measurement method is correct, there is no reason to delete these data. Those values are higher than the others but they are still possible values and is not caused by the measurement error. But we need to focus more on the data point 152 since it is both outliers for citric acid and sulphates. 
+
+
+
+\section*{4. Modeling}
+
+\subsection*{4.1 Modeling with Equal Points in Each Group}
+
+\subsubsection*{4.1.1 Base Model}
+
+I will use all the variables mentioned above in the data set as a base model. And here I am going to use this base model to check whether there are significant relationships between the red wine quality and them. Since the response variable is a categorical variable with two levels, I will use logistic regression to fit for the model. The model can be expressed as:
+$$Logit(P_i)=\beta_0+\beta_{fac}X_{i,fac}+\beta_{vac}X_{i,vac}+\beta_{cac}X_{i,cac}$$
+$$+\beta_{cho}X_{i,cho}+\beta_{sul}X_{i,sul}+\beta_{den}X_{i,den}+\beta_{res}X_{i,res}$$
+$$+\beta_{tsu}X_{i,tsu}+\beta_{fsu}X_{i,fsu}+\beta_{alc}X_{i,alc}+\beta_{pH}X_{i,pH}$$
+
+
+```{r base_coef}
+M1 <- glm(Q ~ .- ID  , family = binomial(link = "logit"), data = red_wine_middle)
+#+ I(fac^2) + I(alc^2) + I(vac^2) + I(cac^2) + I(res^2) + I(cho^2) + I(fsu^2) + I(tsu^2) + I(den^2) + I(pH^2) + I(sul^2)
+kable( round(summary(M1)$coefficients,3), format = "latex", caption = "Coefficients for Base Model")
+```
+
+There seems to be significant relationship between the volatile acid, chlorides, free sulfur dioxide, citric acid, sulphates, total sulfur dioxide and alcohol according to table \ref{tab:base_coef}. The indexes that positively affect the quality of red wine is sulphates, alcohol and free sulfur dioxide. And citric acid, total sulfur dioxide, chlorides and volatile acidity will have negative effects on the red wine quality.Some of our previous guess can be verified that more sulfur dioxide released from the wine, the better will the wine be. And chlorides and volatile acidity can lower the quality by the taste according to our materials. However, there are still some counter-intuitive results since citric acid is beneficial to our body but sulphates are harmful for us. Overall, this is just a base model and for the case that the data is divided in the middle, which means both two groups have almost the same quantities of data points. After the model selection, I will use other ways to divide data and detect which criteria is important to classify red wines.
+
+
+\subsubsection*{4.1.2 Model Selection}
+
+A nice criteria for model selection is AIC for logistic regression. Similar to linear regression, we are also using add one or drop one variable continuously to get the final model. And the remained variables are volatile acidity, alcohol, sulphates and chlorides. So the final model in this case should be:
+
+
+$$Logit(P_i)=\beta_0+\beta_{fac}X_{i,fac}+\beta_{vac}X_{i,vac}+\beta_{cac}X_{i,cac}$$
+$$+\beta_{cho}X_{i,cho}+\beta_{sul}X_{i,sul}$$
+$$+\beta_{tsu}X_{i,tsu}+\beta_{fsu}X_{i,fsu}+\beta_{alc}X_{i,alc}$$
+
+
+
+```{r m1_selected}
+#step(M1)
+
+M1_selected <- glm(Q ~ fac + vac + cho + fsu + tsu + cac + alc + sul, family = binomial(link = "logit"), data = red_wine_middle)
+kable( round(summary(M1_selected)$coefficients,3), format = "latex", caption = "Coefficients for Selected Model")
+```
+And the regression estimated coefficients can be derived in table \ref{tab:m1_selected}.We can see that fixed acidity, alcohol, sulphates and free sulfur dioxide are still positively affecting the quality of the red wine. And the volatile acidity, concentration of citric acidity, chlorides and total sulfur dioxide are still having negative effects on the quality of wine. And here is the case for making a fair division, which means that the weight of the two groups (poor and good quality) are the same. Cases can also be that some people want to distinguish only the wine with very poor quality between others, or distinguish only the top wines. So here, I am going to use different methods to divide the data then rebuild the model. 
+
+
+\subsection*{4.2 Modeling with Biased Preference}
+
+\subsubsection*{4.2.1 Distinguish Poorly Qualified Red Wine}
+
+In this section, we prefer to distinguish the very poorly qualified red wine from others. Therefore, I reset the levels of quality as follows:
+
+$$Y_{i,new}=0, \ if \ \  Y_{i,data} \leq4 $$
+and 
+$$Y_{i,new}=1, \ if \ \  Y_{i,data} >4 $$
+
+The base model is still the one we mentioned above, and to save space, we will only report the parameters of the selected model and make some inference. The selected model is:
+$$Logit(P_i)=\beta_0+\beta_{fac}X_{i,fac}+\beta_{vac}X_{i,vac}$$
+$$+\beta_{cho}X_{i,cho}+\beta_{den}X_{i,den}+\beta_{res}X_{i,res}$$
+$$+\beta_{tsu}X_{i,tsu}+\beta_{alc}X_{i,alc}+\beta_{pH}X_{i,pH}$$
+
+
+```{r coef_lower}
+red_wine_lower_all <- read.csv(here::here("winequality.csv"), header = T, sep = ";")
+name1 <- colnames(red_wine_lower_all)
+name2 <- c("fac","vac","cac","res","cho","fsu","tsu","den","pH","sul","alc","Q")
+colnames(red_wine_lower_all) <- name2
+red_wine_lower_all <- cbind(1:nrow(red_wine_lower_all),red_wine_lower_all)
+colnames(red_wine_lower_all)[1] <- "ID"
+red_wine_lower_all$Q <- ifelse(red_wine_lower_all$Q <=4, 0, 1) 
+
+red_wine_lower <- red_wine_lower_all[1:1200,]
+red_wine_lower_test <- red_wine_lower_all[1201:nrow(red_wine_lower_all),]
+
+attach(red_wine_lower)
+M_lower <- glm(Q ~.-ID, family = binomial(link = "logit"), data = red_wine_lower)
+M_lower_selected <- glm(Q ~ fac + vac + res + cho + tsu + den + pH + alc, family = binomial(link = "logit"), data = red_wine_lower)
+kable( round(summary(M_lower_selected)$coefficients,3), format = "latex", caption = "Coefficients for Lower Biased Model")
+```
+To our surprise, the criteria changed a lot according to the table \ref{tab:coef_lower}. First, there are new variables after the AIC selection and some important variables in the first case has been dropped. Fixed acidity, volatile acidity, residuals, chlorides and pH are negatively affecting the quality of the red wine. And alcohol, density and total sulfur dioxide are positively affecting it. So for those people who wants to distinguish only the poor quality with others, they should care more on the variables included in this model.
+
+
+
+\subsubsection*{4.2.2 Distinguish Perfectly Qualified Red Wine}
+
+In this case, we divide the data into different groups by the following criteria:
+
+
+$$Y_{i,new}=0, \ if \ \  Y_{i,data} \leq6 $$
+and 
+$$Y_{i,new}=1, \ if \ \  Y_{i,data} >6 $$
+Then, the selected model is:
+$$Logit(P_i)=\beta_0+\beta_{fac}X_{i,fac}+\beta_{vac}X_{i,vac}$$
+$$+\beta_{cho}X_{i,cho}+\beta_{den}X_{i,den}+\beta_{res}X_{i,res}$$
+$$+\beta_{tsu}X_{i,tsu}+\beta_{alc}X_{i,alc}+\beta_{pH}X_{i,sul}$$
+
+```{r coef_upper}
+red_wine_upper_all <- read.csv(here::here("winequality.csv"), header = T, sep = ";")
+name1 <- colnames(red_wine_upper_all)
+name2 <- c("fac","vac","cac","res","cho","fsu","tsu","den","pH","sul","alc","Q")
+colnames(red_wine_upper_all) <- name2
+red_wine_upper_all <- cbind(1:nrow(red_wine_upper_all),red_wine_upper_all)
+colnames(red_wine_upper_all)[1] <- "ID"
+red_wine_upper_all$Q <- ifelse(red_wine_upper_all$Q <=6, 0, 1) 
+
+red_wine_upper <- red_wine_upper_all[1:1200,]
+red_wine_upper_test <- red_wine_upper_all[1201:nrow(red_wine_upper_all),]
+
+attach(red_wine_upper)
+M_upper <- glm(Q ~.-ID, family = binomial(link = "logit"), data = red_wine_upper)
+ #M_upper_selected <- glm(Q ~ fac + vac + res + cho + tsu + den + pH + alc, family = binomial(link = "logit"), data = red_wine_upper)
+M_upper_selected <- glm(Q ~ fac + vac + res + cho + tsu + den + sul + alc, family = binomial(link = "logit"), data = red_wine_upper)
+kable( round(summary(M_upper_selected)$coefficients,3), format = "latex", caption = "Coefficients for Upper Biased Model")
+```
+Here, we can see that the variables in table \ref{tab:coef_upper} remained are similar to the last case. However, pH never makes significant effect on the quality. Fixed acidity's coefficient became to positive from negative, sulphates is added into the model and it positively affects the quality of the red wine. Volatile acidity, chlorides still negatively affect the qualification. Concentration of alcohol is still positively affecting the quality.
+
+\section*{5. Conclusion}
+\subsection*{5.1 Overall Conclusion}
+From the coefficient value table above for all the three of them, we can find that there are some covariates that seems to be "robust" no matter which data they are using. Those variables are volatile acidity, chlorides, alcohol. These variables are significantly affecting all the three cases and the absolute value of estimated parameter is large compared with others, which means these indexes have a strong effect on the quality of the red wine. Volatile acidity, as mentioned in the introduction part, is negatively affecting the quality of the red wine according to the result of the logistic regression, which verified our guess that volatile acidity affects the taste of the red wine. Chlorides, similarly, is negatively affecting the quality of the red wine as we imagined that it will give a salty taste to red wine which makes people feel unpleasant. Alcohol is positively affecting the quality of the red wine, which means that the red wine with greater concentration of alcohol, the larger the probability of the red wine is qualified "Good".   
+
+
+\subsection*{5.2 Case Specified Conclusion}
+There are more variables need to be cared about in certain cases. When we are distinguishing the "very poor" or "very good" quality red wine, density is also an important criteria. For the case that we distinguish the "very poor" quality red wine, the density is positively affecting the red wine quality, which means that wine with greater density does not tend to be classified in to "very poor" quality. However, when we want to distinguish "very good" quality red wine, the estimate of the coefficient for density became negative, which means that wines with too large density do not tend to be classified into "very good" group. The other similar variable is residual sugar, this index is not significant if we just want to make a "fair" division, but significant when we want to distinguish the very poor quality and very good quality red wine. Similarly, the estimate of the coefficients have different signs, which means it positively affect the quality when we distinguish the very poor quality red wine, but negatively affect the quality when we distinguish the very good ones. The other result needs to be specified is that pH is only significant when we distinguish the very poor quality, and greater pH (meaning that the red wine is more alkaline) will cause the red wine more tended to be classified as "very poor". Furthermore, sulphates is an important index when we distinguish the "very good" quality red wine and it positively affects the quality of the red wine, which is surprising after knowing that the sulphates is harmful to human's health.
+
+
+\section*{6. Residual Analysis and Prediction Accuracy}
+
+\subsection*{6.1 Residual Analysis}
+
+Residual Analysis for three data set.
+
+\subsection*{6.2 Prediction}
+
+Prediction using test data and make ROC curve and calculate prediction accuracy.
+
+# References {.unnumbered}

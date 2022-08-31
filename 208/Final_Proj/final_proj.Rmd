@@ -1,0 +1,2162 @@
+---
+geometry: "margin=0.8in"
+output: 
+  pdf_document:
+    latex_engine: xelatex   
+documentclass: asaproc
+header-includes:
+    - \usepackage{setspace}
+    - \singlespacing
+    - \usepackage{bm}
+    - \usepackage{graphics}
+---
+
+```{r global_options, include=FALSE, message=FALSE, warning=FALSE,results="hide", echo=FALSE}
+    rm(list = ls())
+    knitr::opts_chunk$set(fig.width=6, 
+    fig.height=4, fig.path='./Figs/',echo=FALSE,  warning=FALSE, message=FALSE)
+    library(knitr)
+    library(MASS)
+
+```
+\title{Extreme Learning Machine Application}
+
+\author{Qi Wang$^1$\\
+Department of Statistics, University of California, Santa Cruz$^1$\\
+}
+ 
+\maketitle
+
+
+\section*{Abstract}
+
+In this report, I reproduced the ELM method in estimating the target function value of both a 1-dimensional function and a 2-dimensional function. The target functions are proportional to Gaussian Mixture density function, which is not linear. Both uniformly and normally generating weights and intercepts of hidden layers are considered, and the predictive result of them are very similar to each other. Also, for the activation function, after trying ReLU and sigmoid function, sigmoid function performs better than the other one for this case. Number of hidden nodes are also considered, for the 1-dimensional case, if the number of nodes is too large, it will have an effect of overfitting for the ReLU case, but it is not so obvious for the sigmoid case. When it comes to the 2-dimensional case, due to the limitation of computing ability, I only tried the case for 200 nodes, the prediction error keeps going down for ReLU case but increases a little for sigmoid case, so the overfitting problem still exist. Overall, the best combination is to use sigmoid function with 200 hidden nodes, either normally or uniformly generating the weights does not matter so much.
+
+
+
+\begin{keywords}
+Extreme Learning Machine, Linear Models, Least Square Estimation, Single Hidden Layer Feedforward Networks
+\end{keywords}
+
+
+\section*{1.Background}
+
+\subsection*{1.1 Model Overview}
+Neural networking is a hot topic in deep learning. It is like a black box where you input values of covariates, then it would output a predicted value by using tons of linear and nonlinear functions in the black box. There could be many steps of operations in the middle, and each operation is called a hidden layer, each function in the hidden layer is called hidden units. Notice that if all the functions in the hidden layer is linear operation, the output could only be a linear function of the inputs, so we must do some operations that are nonlinear, and these operations are carried out after a linear operation in each hidden layer, called activation functions. There are many popular functions like:
+$$sigmoid: f(x) = \frac{e^x}{1+e^x}$$
+$$ReLU: f(x)=max \{ 0, x \} $$
+With these functions, we can break the linearity of the functions then simulate other nonlinear functions that we want. In this report, we are mainly talking about SLFN, which the information only flows from input to output in a single direction, and with only one hidden layer, called single hidden layer feedforward networks. The model can be expressed as follows, for each $x_i$
+$$j^{th} Hidden \ Unit(Not \ Activated): W_j x_i+c_j$$
+$$Hidden \ Unit(Activated):h_{ij}= g_j(W_j x_i+c_j)$$
+$$Output\ Layer:t_i= \beta (h_{i1}, h_{i2},...,h_{ik})+b$$
+
+For classical neural networking, there are tons of hyperparameters in each hidden layer and hidden unit. So how to get the best set of them is a necessary step to fit our model. In this report, We are going to use the extreme learning machine method combined with linear models to make the regression. It includes a combination of content in linear models and also in the machine learning concepts. Therefore, I am going to use the simulated data to reproduce the ELM method including both one-dimensional and multidimensional. 
+
+\subsection*{1.2 Extreme Learning Machine Theory}
+
+In this section, two basic theorem about extreme learning machine method is introduced, which guarantee the convergence of the model.
+
+
+\subsubsection*{Theorem 1.2.1}
+
+Given a standard SLFN with N hidden nodes and activation function $g:R\to R$ which is infinitely differentiable in any interval, for N arbitrary distinct samples $(x_i, t_i)$, where $x_i \in R^n$ and $t_i \in R^m$, for any $w_i$ and $b_i$ randomly chosen from any intervals of $R^n$ and $R$, respectively, according to any continuous probability distribution, then with probability one, the hidden layer output matrix $H$ of the SLFN is invertible and $||H\beta-T||=0$
+
+\subsubsection*{Theorem 1.2.2}
+
+Given any small positive value $\epsilon >0$, and activation function  $g:R\to R$ which is infinitely differentiablein any interval, there exists $\tilde{N}\leq N$ such that for N arbitrary distinct samples $(x_i, t_i)$ where $x_i \in R^n$ and $t_i \in R^m$, for any $w_i$ and $b_i$ randomly chosen from any intervals of $R^n$ and $R$, respectively, according to any continuous probability distribution, then with probability one, $||H_{N\times\tilde{N}}\beta_{\tilde{n}\times m}-T_{N\times m}||\leq \epsilon$.
+
+
+\subsubsection*{Conclusion}
+
+Therefore, based on the two theorems, we can simply use least squares estimate to get the BLUE of $\beta$ and $b$ based on the randomly generated hidden layer weights and hidden layer intercept. Also, if we use the Moore–Penrose generalized inverse to solve the normal equation, the result will perform better.
+
+\section*{2.Dataset}
+
+\subsection*{2.1 Data Generating Machanism}
+As mentioned above, I am going to use two data sets simulated manually. The first one should be a simple regression which only includes one covariate and the other includes two covariates. Furthermore, the response variable are both one-dimensional for them. And the data generating processes are as follows:
+
+$$  Y_{i} = f(X_i) + \epsilon_i  \ , \ \epsilon_i \sim _{iid} N(0,\sigma_1^2) $$
+$$f(x) =D_1(x)+7*D_2(x)+ 2 *D_3(x)$$ with
+$D_1$ is the PDF of $N(\nu_1, \tau_1^2)$, $D_2$ is the PDF of $N(\nu_2, \tau_2^2)$, $D_3$ is the PDF of $N(\nu_3, \tau_3^2)$. And
+$$ \nu_1 = 1, \nu_2=5, \nu_3=9, \tau_1=\tau_2=\tau_3 =1  $$
+
+
+And it looks like a Gaussian mixture PDF as in figure \ref{fig:GMM}
+
+```{r GMM, fig.align='center', fig.cap="Data Generating Process for Model 1"}
+x_all <- seq(from = -2, to = 12, by = 0.01)
+y <- dnorm(x_all, mean = 1, sd = 1) + 7*dnorm(x_all, mean= 5, sd = 1) + 2*dnorm(x_all, mean = 9, sd = 1)
+plot(x_all, y, type = 'l', lwd = 2, col = "red")
+```
+
+Furthermore, the other data set will be generated as follows:
+
+
+$$  Y_{i} = f(X_{1i}\ ,\ X_{2i} )+ \epsilon_i  \ , \ \epsilon_i \sim _{iid} N(0,\sigma_2^2) $$
+
+$$f(x_1,x_2) = 4*D_1(x_1, x_2) + 6*D_2(x_1,x_2) $$
+$D_1$ is the PDF of $MVN_2(\mu_1, \Sigma_1)$ and $D_2$ is the CDF of $MVN_2(\mu_2, \Sigma_2)$ with
+
+
+$$\mu_1 = \begin{bmatrix} 
+	2  \\
+	2 \\
+	\end{bmatrix} , \Sigma_1=\begin{bmatrix} 
+	1 & 0.4  \\
+	0.4 & 1 \\
+	\end{bmatrix}$$
+	and
+	$$\mu_2 = \begin{bmatrix} 
+	4  \\
+	4 \\
+	\end{bmatrix} , \Sigma_2=\begin{bmatrix} 
+	1 & -0.7  \\
+	-0.7 & 1 \\
+	\end{bmatrix}
+	$$
+
+
+```{r 2dGMM, fig.align='center', fig.cap="Data Generating Process for Model 2"}
+x_all_2d <- matrix(rep(seq(from = 0, to = 6, by = 0.01),2), nrow = 2, byrow = TRUE)
+gen_fun <- function(x_1, x_2){
+  
+  out <- 
+
+       10 * (
+         4 * mvtnorm::dmvnorm(c(x_1, x_2), mean = c(2,2), sigma = matrix(c(1,0.4,0.4,1), byrow = TRUE, ncol = 2)) +
+                 6 * mvtnorm::dmvnorm(c(x_1, x_2), mean = c(4,4), sigma = matrix(c(1,-0.7,-0.7,1), byrow = TRUE, ncol = 2)) 
+         
+       )
+    
+    
+  return(out)
+}
+
+y_2d_s <- matrix(NA, nrow =  ncol(x_all_2d), ncol = ncol(x_all_2d))
+i = j = 1
+for (i in 1:ncol(x_all_2d)) {
+  for (j in 1:ncol(x_all_2d)) {
+    
+    y_2d_s[i,j] <- 10*(  4 * mvtnorm::dmvnorm(c(x_all_2d[1,i],x_all_2d[1,j]), mean = c(2,2), sigma = matrix(c(1,0.4,0.4,1), byrow = TRUE, ncol = 2)) +
+                 6 * mvtnorm::dmvnorm(c(x_all_2d[1,i],x_all_2d[1,j]), mean = c(4,4), sigma = matrix(c(1,-0.7,-0.7,1), byrow = TRUE, ncol = 2)) )
+  }
+}
+
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2")
+```
+Here, be careful that the Gaussian density is only the data generating process for y instead of the distribution function of a random variable. When we are generating the data, we will use the $y$ calculated by these two function plus an error term, which follows another normal distribution.
+
+\subsection*{2.2 Sampling with Replacement}
+
+In the first 1-d model, I will sample 10000 covariate with replacement within the range $[-2, 12]$ calculated the corresponding response variable, and choose the $\sigma_1 = 0.5$. In the second 2-d model, I will also sample 10000 pairs of $(x_1, x_2)$ in the rectangle from 0 to 6, and calculate response variable. Here, I also will choose $\sigma_2=0.5$. In this way, we got the simulated data and ready for next neural networking step. Furthermore, I will use all the points as the train set, then use the sequence from 0 to 6 with distance 0.01 as the test set, then compare the predictive value with the function to evaluate the goodness of fit.
+
+```{r sampling}
+x_1d <- sample(x_all, 10000, replace = TRUE)
+y_1d <- dnorm(x_1d, mean = 1, sd = 1) + 7*dnorm(x_1d, mean= 5, sd = 1) + 2*dnorm(x_1d, mean = 9, sd = 1) + rnorm(10000, mean = 0, sd = 0.5)
+
+x1_2d <- sample(x_all_2d[1,],1000, replace = TRUE)
+x2_2d <- sample(x_all_2d[2,],1000, replace = TRUE)
+y_2d <- rep(NA, 1000)
+for (i in 1:1000) {
+  y_2d[i] <- gen_fun(x_1 = x1_2d[i], x_2 = x2_2d[i]) + rnorm(1, mean = 0, sd = 0.5)
+}
+
+```
+
+\section*{3.Model Setting}
+
+Guang-Bin Huang, Qin-Yu Zhu and Chee-Kheong Siew discovered a neural networking model which simplifies the process of getting the weight and intercept within each hidden unit in SLFN model. In this case, we can use random generated weights and intercepts to fit the hidden layer. The model can be expressed as follows:
+For each input $x$:
+$$ h_i = g_i(W_i^Tx+c_i) $$
+And after calculating the hidden units value $h_i$:
+
+$$\hat{y}= \omega^T(h_1, h_2,...,h_k)+b$$
+in which, $g_i$ is an activation function, which destroys the linear properties to fit various different type of functions. 
+
+As we can see from the formula, if we generate $W_i$ and $c_i$ randomly first, then they can be treated as fixed parameters, then after setting the activation function $g_i(x)$, each $h_i$ is known. Therefore, the only step needing calculation is the last step, which optimizes the $\omega$ and $b$. Since we have known each $h_i$, the last step can be easily calculated by using the least square estimation which is related to linear models we learn this quarter. I will explore different kinds of distribution function for $W_i$ and $c_i$
+
+\section*{4.Model Fitting}
+
+\subsection*{4.1 One-dimensional Case}
+Since I am also interested in the effect of the number of hidden nodes within the hidden layer, I will explore the case when $k = 10$, $k=50$, $k=100$ and $k=500$. Furthermore, for the activation function, I will first take the Sigmoid function, and then ReLU functions. To check the goodness of fit, I will generate x in an increasing order from -2 to 12 with distance 0.01, and fit the y then check the similarity of the generated function and true function.
+
+\subsubsection*{4.1.1 Uniformly Generating Hidden Layer Slope and Weights}
+This is the case that I generated the $W_i$ and $c_i$ by a uniform distribution $U[-1,1]$. After fitting the model with the sample, the comparisons between the true data generating function and estimated function are as follows in figure \ref{fig:k1}, in which I used the sigmoid function as the activation. Then in figure \ref{fig:k2}, I used the ReLU function. It seems that ReLU function didn't perform well when k goes too large even if I used the generalized inverse to make the function smoother. I think it's because the the model is overfitting the data.
+
+```{r 1dunifsig}
+k = 10
+#Generate W and c
+
+w <- runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+alpha = 0
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_10 <- gv%*%param
+
+
+
+
+k = 50
+#Generate W and c
+
+w <- runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+alpha = 0
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_50 <- gv%*%param
+
+
+
+
+
+k = 100
+#Generate W and c
+
+w <- runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+alpha = 0
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_100 <- gv%*%param
+
+
+
+
+
+k = 500
+#Generate W and c
+
+w <- runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+alpha = 0
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_500 <- gv%*%param
+```
+
+
+```{r k1, fig.align='center', fig.cap="Uniformly Generating(Sigmoid Activation)"}
+
+MSE_k1 <- matrix(c(sum((yhat_10 - y)^2),sum((yhat_50 - y)^2),sum((yhat_100 - y)^2),sum((yhat_500 - y)^2)), ncol = 1)
+  
+par(mfrow = c(2,2), mar = c(1.5,1.5,1.5,1.5))
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 10)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_10, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 50)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_50, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 100)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_100, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 500)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_500, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+```
+
+```{r 1dunifre}
+k = 10
+#Generate W and c
+
+w <- runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+alpha = 1
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_10 <- gv%*%param
+
+
+
+
+k = 50
+#Generate W and c
+
+w <- runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_50 <- gv%*%param
+
+
+
+
+
+k = 100
+#Generate W and c
+
+w <- runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_100 <- gv%*%param
+
+
+
+
+
+k = 500
+#Generate W and c
+
+w <- runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_500 <- gv%*%param
+```
+
+```{r k2, fig.align='center', fig.cap="Uniformly Generating(ReLU Activation)"}
+MSE_k2 <- matrix(c(sum((yhat_10 - y)^2),sum((yhat_50 - y)^2),sum((yhat_100 - y)^2),sum((yhat_500 - y)^2)), ncol = 1)
+par(mfrow = c(2,2), mar = c(1.5,1.5,1.5,1.5))
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 10)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_10, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 50)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_50, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 100)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_100, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 500)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_500, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+```
+
+
+
+\subsubsection*{4.1.2 Normally Generating Hidden Layer Slope and Weights}
+This is the case that I generated the $W_i$ and $c_i$ by standard normal distribution $N(0,1)$. After fitting the model with the sample, the comparisons between the true data generating function and estimated function are as follows in figure \ref{fig:k3} for Sigmoid function and \ref{fig:k4} for ReLU function.
+
+```{r 1dnormsig}
+k = 10
+#Generate W and c
+
+w <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+alpha = 0
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_10 <- gv%*%param
+
+
+
+
+k = 50
+#Generate W and c
+
+w <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+alpha = 0
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_50 <- gv%*%param
+
+
+
+
+
+k = 100
+#Generate W and c
+
+w <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+alpha = 0
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_100 <- gv%*%param
+
+
+
+
+
+k = 500
+#Generate W and c
+
+w <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+alpha = 0
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_500 <- gv%*%param
+```
+
+
+```{r k3, fig.align='center', fig.cap="Normally Generating(Sigmoid Activation)"}
+MSE_k3 <- matrix(c(sum((yhat_10 - y)^2),sum((yhat_50 - y)^2),sum((yhat_100 - y)^2),sum((yhat_500 - y)^2)), ncol = 1)
+par(mfrow = c(2,2), mar = c(1.5,1.5,1.5,1.5))
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 10)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_10, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 50)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_50, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 100)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_100, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 500)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_500, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+```
+
+```{r 1dnormre}
+k = 10
+#Generate W and c
+
+w <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+alpha = 1
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_10 <- gv%*%param
+
+
+
+
+k = 50
+#Generate W and c
+
+w <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_50 <- gv%*%param
+
+
+
+
+
+k = 100
+#Generate W and c
+
+w <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_100 <- gv%*%param
+
+
+
+
+
+k = 500
+#Generate W and c
+
+w <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+
+H_all <- matrix(NA, nrow = length(x_1d), ncol = k)
+
+for (i in 1:length(x_1d)) {
+  H_all[i,] <- w*x_1d[i] + c
+}
+
+sgm <- function(x){
+  out <- exp(x)/(1+exp(x))
+  return(out)
+}
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_1d, ncol = 1)
+
+xv <- seq(from = -2, to = 12, by = 0.01)
+H_v <- matrix(NA, nrow = length(xv), ncol = k)
+for (i in 1:length(xv)) {
+  H_v[i,] <- w*xv[i] + c
+}
+if(alpha == 0){
+gv_0 <- sgm(H_v)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(H_v, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+
+yhat_500 <- gv%*%param
+```
+
+```{r k4, fig.align='center', fig.cap="Normally Generating(ReLU Activation)"}
+MSE_k4 <- matrix(c(sum((yhat_10 - y)^2),sum((yhat_50 - y)^2),sum((yhat_100 - y)^2),sum((yhat_500 - y)^2)), ncol = 1)
+par(mfrow = c(2,2), mar = c(1.5,1.5,1.5,1.5))
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 10)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_10, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 50)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_50, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 100)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_100, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+
+plot(x_all, y, type = 'l', lwd = 4, col = "red", xlab = "X", main = "Predictive(k = 500)")
+lines(x = seq(from = -2, to = 12, by = 0.01 ), y = yhat_500, type = 'l', lwd = 4, xlab = "X", lty = 4)
+par(cex = 0.8)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,4), lwd = c(3,3), bty = "n")
+
+```
+
+
+
+Here, we can see that there are not many differences whether we generate the weight and intercept by uniform distribution or normal distribution. However, when the number of hidden units are very small, like 10, the model performs poorly. However, if we increase the number of the unit to a very large value, it will have the overfitting problem like k = 500. We can see from the case when $k=500$, the function becomes more noisy than the others although it fits the train set well. Therefore, setting a proper number of hidden nodes is very important. Another important index to compare them is the sum of the predictive error $\sum_{i=1}^N(\hat{y_i}-y_i)^2$, which is shown in table \ref{tab:unif_1d} and \ref{tab:norm_1d}. However, an obvious advantage of sigmoid comparing with ReLU is that sigmoid function is more stable and smoother, when predicting smooth curves, it performs better than ReLU function because of a smaller of prediction error.
+
+
+```{r unif_1d}
+tab_1 <- cbind(MSE_k1, MSE_k2)
+rownames(tab_1) <- c("k=10", "k=50", "k=100", "k=500")
+colnames(tab_1) <- c("Sigmoid","ReLU")
+kable(tab_1, align = 'c', caption = "Prediction Error(Uniform)", format = "latex")
+```
+```{r norm_1d}
+tab_2 <- cbind(MSE_k3, MSE_k4)
+rownames(tab_2) <- c("k=10", "k=50", "k=100", "k=500")
+colnames(tab_2) <- c("Sigmoid","ReLU")
+kable(tab_2, align = 'c', caption = "Prediction Error(Normal)", format = "latex")
+```
+
+
+\subsection*{4.2 Two-dimensional Case}
+
+Here, I will consider another two-dimensional function mentioned above. Similarly, I will use $k = 10$, $k = 50$,$k=100$ and $k = 200$ as the number of the hidden nodes. Also, both uniformly and normally generating are considered as follows. The reason I use 200 is that when k equals 500, my computer would run out of memory.
+
+\subsubsection*{4.2.1 Uniformly Generating Hidden Layer Slopes and Interceptss}
+
+Similarly, this is the case that we use $U[-1,1]$ to generate both slope and intercept. And the predictive plot of this case is in figure \ref{fig:k11} with sigmoid activation function and in figure \ref{fig:k12} with ReLU function.
+
+```{r 2dunifsig}
+set.seed(1)
+# Setting Hidden Units Number
+k = 10
+#Generate W and c
+
+w1 <- runif(k, -1, 1)
+w2 <-runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+alpha = 0
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_10 <- gv%*%param
+yhat_mat_10 <- matrix(yhat_10, nrow = 601, ncol = 601, byrow = TRUE)
+
+
+k = 50
+#Generate W and c
+
+w1 <- runif(k, -1, 1)
+w2 <-runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+alpha = 0
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_50 <- gv%*%param
+yhat_mat_50 <- matrix(yhat_50, nrow = 601, ncol = 601, byrow = TRUE)
+
+
+
+k = 100
+#Generate W and c
+
+w1 <- runif(k, -1, 1)
+w2 <-runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+alpha = 0
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_100<- gv%*%param
+yhat_mat_100 <- matrix(yhat_100, nrow = 601, ncol = 601, byrow = TRUE)
+
+
+
+
+k = 200
+#Generate W and c
+
+w1 <- runif(k, -1, 1)
+w2 <-runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+alpha = 0
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_500 <- gv%*%param
+yhat_mat_500 <- matrix(yhat_500, nrow = 601, ncol = 601, byrow = TRUE)
+```
+
+
+```{r k11, fig.align='center', fig.cap="Uniformly Generating(Sigmoid Activation)"}
+MSE_2d_1 <- c(sum((yhat_mat_10-y_2d_s)^2), sum((yhat_mat_50-y_2d_s)^2),sum((yhat_mat_100-y_2d_s)^2),sum((yhat_mat_500-y_2d_s)^2))
+
+par(mfrow = c(2,2), mar = c(1.5,1.5,1.5,1.5))
+contour(x = xv_1, y = xv_2, z = yhat_mat_10, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=10)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+
+contour(x = xv_1, y = xv_2, z = yhat_mat_50, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=50)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+
+contour(x = xv_1, y = xv_2, z = yhat_mat_100, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=100)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+
+contour(x = xv_1, y = xv_2, z = yhat_mat_500, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=200)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+```
+
+
+```{r 2dunifre}
+set.seed(1)
+# Setting Hidden Units Number
+k = 10
+#Generate W and c
+
+w1 <- runif(k, -1, 1)
+w2 <-runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+alpha = 1
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_10 <- gv%*%param
+yhat_mat_10 <- matrix(yhat_10, nrow = 601, ncol = 601, byrow = TRUE)
+
+
+k = 50
+#Generate W and c
+
+w1 <- runif(k, -1, 1)
+w2 <-runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_50 <- gv%*%param
+yhat_mat_50 <- matrix(yhat_50, nrow = 601, ncol = 601, byrow = TRUE)
+
+
+
+k = 100
+#Generate W and c
+
+w1 <- runif(k, -1, 1)
+w2 <-runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_100<- gv%*%param
+yhat_mat_100 <- matrix(yhat_100, nrow = 601, ncol = 601, byrow = TRUE)
+
+
+
+
+k = 200
+#Generate W and c
+
+w1 <- runif(k, -1, 1)
+w2 <-runif(k, -1, 1)
+c <- runif(k, -1, 1)
+
+# Calculating H
+
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_500 <- gv%*%param
+yhat_mat_500 <- matrix(yhat_500, nrow = 601, ncol = 601, byrow = TRUE)
+```
+
+```{r k12, fig.align='center', fig.cap="Uniformly Generating(ReLU Activation)"}
+MSE_2d_2 <- c(sum((yhat_mat_10-y_2d_s)^2), sum((yhat_mat_50-y_2d_s)^2),sum((yhat_mat_100-y_2d_s)^2),sum((yhat_mat_500-y_2d_s)^2))
+
+par(mfrow = c(2,2), mar = c(1.5,1.5,1.5,1.5))
+contour(x = xv_1, y = xv_2, z = yhat_mat_10, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=10)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+
+contour(x = xv_1, y = xv_2, z = yhat_mat_50, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=50)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+
+contour(x = xv_1, y = xv_2, z = yhat_mat_100, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=100)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+
+contour(x = xv_1, y = xv_2, z = yhat_mat_500, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=200)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+```
+
+```{r 2dnormalsig}
+set.seed(1)
+# Setting Hidden Units Number
+k = 10
+#Generate W and c
+
+w1 <- rnorm(k, 0, 1)
+w2 <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+alpha = 0
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_10 <- gv%*%param
+yhat_mat_10 <- matrix(yhat_10, nrow = 601, ncol = 601, byrow = TRUE)
+
+
+k = 50
+#Generate W and c
+
+w1 <- rnorm(k, 0, 1)
+w2 <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+alpha = 0
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_50 <- gv%*%param
+yhat_mat_50 <- matrix(yhat_50, nrow = 601, ncol = 601, byrow = TRUE)
+
+
+
+k = 100
+#Generate W and c
+
+w1 <- rnorm(k, 0, 1)
+w2 <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+alpha = 0
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_100<- gv%*%param
+yhat_mat_100 <- matrix(yhat_100, nrow = 601, ncol = 601, byrow = TRUE)
+
+
+
+
+k = 200
+#Generate W and c
+
+w1 <- rnorm(k, 0, 1)
+w2 <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+alpha = 0
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_500 <- gv%*%param
+yhat_mat_500 <- matrix(yhat_500, nrow = 601, ncol = 601, byrow = TRUE)
+```
+
+
+```{r k21, fig.align='center', fig.cap="Normally Generating(Sigmoid Activation)"}
+MSE_2d_3 <- c(sum((yhat_mat_10-y_2d_s)^2), sum((yhat_mat_50-y_2d_s)^2),sum((yhat_mat_100-y_2d_s)^2),sum((yhat_mat_500-y_2d_s)^2))
+
+par(mfrow = c(2,2), mar = c(1.5,1.5,1.5,1.5))
+contour(x = xv_1, y = xv_2, z = yhat_mat_10, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=10)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+
+contour(x = xv_1, y = xv_2, z = yhat_mat_50, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=50)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+
+contour(x = xv_1, y = xv_2, z = yhat_mat_100, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=100)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+
+contour(x = xv_1, y = xv_2, z = yhat_mat_500, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=200)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+```
+
+
+
+```{r 2dnormalre}
+set.seed(1)
+# Setting Hidden Units Number
+k = 10
+#Generate W and c
+
+w1 <- rnorm(k, 0, 1)
+w2 <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+alpha = 1
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_10 <- gv%*%param
+yhat_mat_10 <- matrix(yhat_10, nrow = 601, ncol = 601, byrow = TRUE)
+
+
+k = 50
+#Generate W and c
+
+w1 <- rnorm(k, 0, 1)
+w2 <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_50 <- gv%*%param
+yhat_mat_50 <- matrix(yhat_50, nrow = 601, ncol = 601, byrow = TRUE)
+
+
+
+k = 100
+#Generate W and c
+
+w1 <- rnorm(k, 0, 1)
+w2 <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_100<- gv%*%param
+yhat_mat_100 <- matrix(yhat_100, nrow = 601, ncol = 601, byrow = TRUE)
+
+
+
+
+k = 200
+#Generate W and c
+
+w1 <- rnorm(k, 0, 1)
+w2 <- rnorm(k, 0, 1)
+c <- rnorm(k, 0, 1)
+
+# Calculating H
+
+H_all <- matrix(NA, nrow = length(x1_2d), ncol = k)
+
+for (i in 1:length(x1_2d)) {
+    
+     H_all[i,] <- w1*x1_2d[i] + w2*x2_2d[i] + c
+ 
+}
+
+
+if(alpha == 0){
+  gh_0 = sgm(H_all)
+  gh <- cbind(1,gh_0)
+}else{
+  gh_0 = apply(H_all, c(1,2), max, 0)
+  gh <- cbind(1,gh_0)
+}
+
+
+param <- matrix(ginv(gh) %*% y_2d, ncol = 1)
+
+xv_1 = xv_2 <- seq(from = 0, to = 6, by = 0.01)
+hv_2d <- matrix(NA, nrow = length(xv_1) * length(xv_2), ncol = k)
+l = 1
+for (l in 1:k) {
+  reg <- function(i,j){
+  
+  out <- w1[l]*xv_1[i] + w2[l]*xv_2[j] + c[l]
+  
+  }
+
+hv_2d[,l] <- as.vector(outer(1:length(xv_1), 1:length(xv_2), Vectorize(reg))) 
+}
+
+if(alpha == 0){
+gv_0 <- sgm(hv_2d)
+gv <- cbind(1, gv_0)
+}else{
+  gv_0 = apply(hv_2d, c(1,2), max, 0)
+  gv <- cbind(1,gv_0)
+  
+}
+
+yhat_500 <- gv%*%param
+yhat_mat_500 <- matrix(yhat_500, nrow = 601, ncol = 601, byrow = TRUE)
+```
+
+
+```{r k22, fig.align='center', fig.cap="Normally Generating(ReLU Activation)"}
+MSE_2d_4 <- c(sum((yhat_mat_10-y_2d_s)^2), sum((yhat_mat_50-y_2d_s)^2),sum((yhat_mat_100-y_2d_s)^2),sum((yhat_mat_500-y_2d_s)^2))
+
+par(mfrow = c(2,2), mar = c(1.5,1.5,1.5,1.5))
+contour(x = xv_1, y = xv_2, z = yhat_mat_10, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=10)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+
+contour(x = xv_1, y = xv_2, z = yhat_mat_50, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=50)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+
+contour(x = xv_1, y = xv_2, z = yhat_mat_100, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=100)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+
+contour(x = xv_1, y = xv_2, z = yhat_mat_500, levels = seq(from = 3, to = 13, by = 2), main= "Predictive(k=200)", lwd = 2, lty =2)
+contour(x = x_all_2d[1,], y = x_all_2d[2,], z = y_2d_s ,xlab = "x_1", ylab = "x_2", add = TRUE, col = "red",levels = seq(from = 3, to = 13, by = 2), lwd = 2)
+legend("topleft",c("True","Pred"), col = c("red","black"), lty = c(1,2), lwd = c(3,3), bty = "n")
+```
+
+
+\subsubsection*{4.2.2 Normally Generating Hidden Layer Slopes and Intercepts}
+
+Also, here is the predictive performance for the normally generated methods in figure \ref{fig:k21} and figure \ref{fig:k22}. The predictive squared error are shown in table \ref{tab:unif_2d} and table \ref{tab:norm_2d}.
+
+
+
+```{r unif_2d}
+tab_1 <- cbind(MSE_2d_1, MSE_2d_2)
+rownames(tab_1) <- c("k=10", "k=50", "k=100", "k=200")
+colnames(tab_1) <- c("Sigmoid","ReLU")
+kable(tab_1, align = 'c', caption = "2D Prediction Error(Uniform)", format = "latex")
+```
+```{r norm_2d}
+tab_2 <- cbind(MSE_2d_3, MSE_2d_4)
+rownames(tab_2) <- c("k=10", "k=50", "k=100", "k=200")
+colnames(tab_2) <- c("Sigmoid","ReLU")
+kable(tab_2, align = 'c', caption = "2D Prediction Error(Normal)", format = "latex")
+```
+
+
+
+\section*{5.Model Comparisons}
+
+
+From the sum of squared prediction error, we can see that for the 1-dimensional case, the sigmoid function performs better tan the ReLU function especially when the target function is a smooth curve instead of straight line. Furthermore, either uniformly or normally generating the weights will not affect the prediction result much. But the only difference there is that normal distribution can avoid being overfitted, and uniform distribution can explore the properties of the data better.
+
+Also, the number of hidden nodes is a factor of affecting the prediction performance, too. If too many hidden nodes are included, the function will fall into an overfitting problem, like the case of the ReLU activation function with nodes 500 in the 1d case. For the 2-d case, the sigmoid function also has a better prediction performance based on the prediction error. Sigmoid function is easier to be overfitted in our case since it has performed well when k=50. ReLU function tends to learn the data slower than sigmoid function since it generates too many useless information, like all the columns are generated as 0.
+
+\section*{6.Discussion}
+
+In my model, I used a $ginv()$ function to calculate the generalized inverse of the H matrix, I was thinking of using the $lm()$ function to get the regression coefficient to make the prediction. However, some of the coefficient was shown as NA, which indicates they are not informative at all. For example, for a ReLU function, if we randomly generated $W$ and $c$, cases are possible that we got an extreme value so all the correspondingly hidden node value are same, like 0. That's why sometimes the ReLU function does not perform well. In the future research, I am thinking of using a $x^i$ as hidden nodes, so we are making a polynomial approximation of the true function (feels like a Taylor's Expansion) of a function, which may makes it easier to handle. For the two-dimensional case, I may choose $x^iy^j$ as hidden nodes to avoid a activation function. However, it could not be called "Neuro Networking" since it does not only include a linear function and a activation function.
+
+

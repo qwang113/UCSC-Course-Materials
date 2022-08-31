@@ -1,0 +1,32 @@
+---
+title: "Homework Assignment 1"
+author: "XXX YYY"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+\noindent 1. Display a numerical summary of the dataset **cars**
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r cars}
+summary(cars)
+```
+
+\vspace{1cm}
+
+\noindent 2. Consider the dataset **pressure**. Plot pressure vs. temperature.
+
+\noindent (a) Plots pressure vs. temperature
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+\noindent (b) Provide a description of your plot. 
+
+The plot shows that as temperature increases pressure also increases. The relationship between the two variables appears to be non-linear. 

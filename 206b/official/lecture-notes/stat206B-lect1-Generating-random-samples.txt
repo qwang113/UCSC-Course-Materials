@@ -1,0 +1,120 @@
+rm(list=ls(all=TRUE))
+set.seed(5554)
+
+
+### repeat x n times in rows ===> produce an n*dim(x) matrix
+rep.row<-function(x,n){
+    matrix(rep(x,each=n),nrow=n)
+}
+
+### repeat x n times in columns ===> produce an dim(x)*n matrix
+rep.col<-function(x,n){
+    matrix(rep(x,each=n), ncol=n, byrow=TRUE)
+}
+
+
+
+
+### EXAMPLE 1: Obtain a random sample from a Dirichlet distribution
+set.seed(574)
+n <- 10000 # sample size
+p <- 3  ## the dimension of the Dirichlet distribution
+alpha <- c(3, 1, 2)  ### the Dirichlet parameters
+
+x_tilde <- NULL
+for(i_p in 1:p)
+{
+    x_tilde <- cbind(x_tilde, rgamma(n, alpha[i_p], 1))
+} ## for(i_p in 1:p)
+
+x <- x_tilde/rep.col(apply(x_tilde, 1, sum), p)
+
+x_grid <- seq(0.001, 0.9999, by=0.001)
+for(i_p in 1:p)
+{
+    file_name <- paste("ex1-dirichlet-x", i_p, ".pdf", sep="")
+    pdf(file_name)
+    par(mar=c(4.5, 4.5, 2.1, 2.1))
+
+    hist(x[,i_p], prob=TRUE, xlab="x", lty=1, ylab="density", cex.axis=2, cex.lab=2, lwd=3, main=paste("X_", i_p))
+
+    ### reference: Be density to check a marginal
+    lines(x_grid, dbeta(x_grid, alpha[i_p], sum(alpha[-i_p])), col=2, lwd=2)
+    dev.off()
+} ## for(i_p in 1:p)
+
+
+
+
+
+### EXAMPLE 2: Obtain a random sample from an inverse Gamma (IG) distribution
+set.seed(574)
+n <- 10000 # sample size
+a <- 4; b <- 2  ### the IG parameters
+
+x <- 1/rgamma(n, a, rate=b) ## Note: the second parameter of function rgamma is rate by default.
+
+
+
+pdf("ex2-IG.pdf")
+par(mar=c(4.5, 4.5, 2.1, 2.1))
+
+hist(x, prob=TRUE, xlab="x", lty=1, ylab="density", cex.axis=2, cex.lab=2, lwd=3, main="", ylim=c(0, 2.0), nclass=100)
+
+### Reference: IG(a, b) density
+x_grid <- seq(0.001, 7, by=0.01)
+IG_den <- b^a/gamma(a)*x_grid^(-(a+1))*exp(-b/x_grid)
+lines(x_grid, IG_den, col=2, lwd=2)
+
+dev.off()
+
+
+
+
+### EXAMPLE 3: Obtain a random sample from IG*Normal distribution
+set.seed(574)
+n <- 10000 # sample size
+a <- 6/2; b <- 6/2  ### the IG parameters
+m <- 0 # mean for normal
+
+
+x <- 1/rgamma(n, a, rate=b) ## Note: the second parameter of function rgamma is rate by default.
+y <- rnorm(n, m, sqrt(x)) ## Note: the second parameter of function rgamma is rate by default.
+
+
+
+pdf("ex3-IG-Nor.pdf")
+par(mar=c(4.5, 4.5, 2.1, 2.1))
+plot(x, y, xlab="x", lty=1, ylab="y", cex.axis=2, cex.lab=2, lwd=0.5, main="")
+#contour(x, y, col = "red", add = TRUE, method = "edge")
+dev.off()
+
+
+
+pdf("ex3-IG.pdf")
+par(mar=c(4.5, 4.5, 2.1, 2.1))
+
+hist(x, prob=TRUE, xlab="x", lty=1, ylab="density", cex.axis=2, cex.lab=2, lwd=3, main="", ylim=c(0, 1.0), nclass=100)
+
+### Reference: IG(a, b) density
+x_grid <- seq(0.001, 7, by=0.01)
+IG_den <- b^a/gamma(a)*x_grid^(-(a+1))*exp(-b/x_grid)
+lines(x_grid, IG_den, col=2, lwd=2)
+
+dev.off()
+
+
+pdf("ex3-t.pdf")
+par(mar=c(4.5, 4.5, 2.1, 2.1))
+
+hist(y, prob=TRUE, xlab="y", lty=1, ylab="density", cex.axis=2, cex.lab=2, lwd=3, main="", ylim=c(0, 0.5), nclass=100)
+
+### Reference: IG(a, b) density
+y_grid <- seq(-5, 5, by=0.1)
+
+t_den <- dt(y_grid, df=2*a)
+
+lines(y_grid, t_den, col=2, lwd=2)
+
+dev.off()
+

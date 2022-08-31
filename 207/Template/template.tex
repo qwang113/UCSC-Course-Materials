@@ -1,0 +1,90 @@
+\documentclass[11pt, twocolumn]{asaproc}
+
+\usepackage{graphicx}
+\usepackage{times}
+\usepackage{lipsum}
+
+\title{Title of the data analysis report}
+
+\author{Your name}
+\begin{document}
+
+
+\maketitle
+
+\begin{abstract}
+A short paragraph summarizing the aim of the report, what you did, and what you found.
+\end{abstract}
+
+
+
+\section{Primary Subhead\label{intro}}
+
+\lipsum[1]
+
+\begin{table*}[htb]
+\caption{A 2-column table.}
+\begin{center}
+\begin{tabular}{ccccc}
+\hline
+\hline
+\\[-5pt]
+\multicolumn{2}{c}{Genotype} & &
+\multicolumn{1}{c}{Dummy for additivity} &
+\multicolumn{1}{c}{Dummy for dominance }\\
+\multicolumn{1}{c}{Label} &    
+\multicolumn{1}{c}{Index i} &
+\multicolumn{1}{c}{Genotypic value ($\eta$)}&
+\multicolumn{1}{c}{effect $\alpha$ (x)} &
+\multicolumn{1}{c}{effect $\delta$ (z)}\\
+\hline
+qq      &1&     $\mu + \mbox{2}\alpha$  & 2&    0\\
+Qq&     2&      $\mu + \alpha + \delta$&        1       &1\\
+QQ&     3&      $\mu$&  0&      0\\
+\hline
+\end{tabular}
+\end{center}
+\end{table*}
+
+
+\subsection{Secondary Subhead}
+
+
+\lipsum[1]
+
+\subsection{Secondary Subhead}
+
+
+\lipsum[1]
+
+\section{Another Primary Subhead}
+
+\subsection{Secondary Subhead}
+
+\begin{figure*}[htb]
+\centering\includegraphics[width = 0.8\textwidth]{matrix.png}
+\caption{A 2-column figure.}
+\end{figure*}
+
+
+\lipsum[1]
+
+\subsubsection{Tertiary Subhead}
+
+
+\lipsum[1]
+
+
+
+\lipsum[1]
+
+\begin{figure}[htb]
+\centering\includegraphics[width = \columnwidth]{matrix.png}
+\caption{A 1-column figure}
+\end{figure}
+
+\lipsum[1]
+
+\end{document}
+
+

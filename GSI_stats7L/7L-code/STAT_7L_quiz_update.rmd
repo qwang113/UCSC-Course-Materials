@@ -1,0 +1,369 @@
+---
+title: "STAT 7L Canvas Quiz Updates"
+output: pdf_document
+header-includes:
+  - \usepackage{xcolor}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# enter shorthand for the current quarter in string with no spaces, puncuation or special characters. Ex: quarter = "F19"
+quarter = "Summer2022"; if(quarter == " "){stop("Enter quarter (i.e. F19 for Fall 2019) in string on line 11.")}
+setwd("D:/77/UCSC/study/GSI_stats7L/7L-code")
+set.seed(42)
+```
+
+# Lab 2
+
+```{r, include=FALSE}
+# remove 4 random data points from butterfly.txt data, used in Lab 2A
+butteryfly_dat = as.matrix(read.table("butterfly.txt", sep = "", header = TRUE)); butteryfly_colnames = colnames(butteryfly_dat)
+butteryfly_dat = as.matrix(butteryfly_dat[-sample(1:dim(butteryfly_dat)[1],4),1:dim(butteryfly_dat)[2]]); colnames(butteryfly_dat) <- butteryfly_colnames
+write.table(butteryfly_dat, file=sprintf("butterfly_%s.txt",quarter), row.names = FALSE, quote = FALSE)
+
+# remove 22 random data points from cereal.txt data excluding rows 1,3,4 and 58, used in Labs 2B-2D
+cereal_dat = as.matrix(read.table("cereal.txt", sep = "", header = TRUE)); cereal_colnames = colnames(cereal_dat)
+cereal_dat = as.matrix(cereal_dat[-sample((1:dim(cereal_dat)[1])[-c(1,3,4,58)],22),1:dim(cereal_dat)[2]]); colnames(cereal_dat) <- cereal_colnames
+write.table(cereal_dat, file=sprintf("cereal_%s.txt",quarter), row.names = FALSE, quote = FALSE)
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which(tabulate(match(v, uniqv)) == max(tabulate(match(v, uniqv))))]
+}
+```
+
+### Lab 2A
+
+* Upload "`r sprintf("butterfly_%s.txt",quarter)`" and "`r sprintf("cereal_%s.txt",quarter)`" to Canvas Files. 
+* Update "butterfly.txt" to "`r sprintf("butterfly_%s.txt",quarter)`" and "cereals.txt" to "`r sprintf("cereal_%s.txt",quarter)`" in introduction of Lab 2A Canvas Quiz. 
+* Update Lab 2A Canvas Quiz questions as follows. (Be aware of possible changes in the question text. For multiple choice questions with numeric answers, also alter the wrong answers slightly.)
+    * Question 2. "Fill in the blank: the range of wing length is `r range(butteryfly_dat)[1]` cm to (____) cm." Answer: `r range(butteryfly_dat)[2]`
+    * Question 3. "What is the mean of the data set?" Answer: `r round(mean(butteryfly_dat),2)`
+    * Question 4. "What is the median of the data set?" Answer: `r round(median(butteryfly_dat),2)`
+    * Question 5. "What is the mode of the data set?" Answer: `r round(getmode(butteryfly_dat),2)`
+    * Question 6. "What is the standard deviation of the data set?" Answer: `r round(sd(butteryfly_dat),3)`
+    * Question 7-11. Select the correct multiple choice options using the histogram and boxplot below. 
+```{r echo = FALSE, fig.height = 2, fig.width = 7, fig.align = "center"}
+par(mfrow=c(1,2), mar = c(3, 0, 1, 1))
+hist(butteryfly_dat,main=""); boxplot(butteryfly_dat,horizontal = TRUE,main="")
+```
+
+### Lab 2B
+
+* Update "cereal.txt" to "`r sprintf("cereal_%s.txt",quarter)`" in introduction of Lab 2B Canvas Quiz. 
+* Update Lab 2B Canvas Quiz questions as follows. (Be aware of possible changes in the question text. Some answers may not change depending on the data.)
+    * Update the text before Question 1, "Scroll around and see that there are 33 different cereals in this dataset, and 15 different variables measured for each cereal."
+    * Question 3. "Which TWO manufactures have the largest representation in this sample?" Answer: `r unique(cereal_dat[,2])[order(tabulate(match(cereal_dat[,2], unique(cereal_dat[,2]))), decreasing = TRUE)[1:2]]`
+    * Question 4. "What percent of the cereals in the sample were manufactured by Quaker, manufacturer 'Q' (round to TWO decimal places)? ___%" Answer: `r round(100*tabulate(match(cereal_dat[,2], unique(cereal_dat[,2])))[which(unique(cereal_dat[,2])=="Q")]/dim(cereal_dat)[1],2)` with margin of 0.01
+    * Question 5. "What percent of the cereals in the sample were manufactured by Post, manufacturer 'P' (round to TWO decimal places)? ___%" Answer: `r round(100*tabulate(match(cereal_dat[,2], unique(cereal_dat[,2])))[which(unique(cereal_dat[,2])=="P")]/dim(cereal_dat)[1],2)` with margin of 0.01
+    * Question 6. "The three manufacturers that made the hot cereals in this sample are (check all that apply):" Answer: `r unique(cereal_dat[which(cereal_dat[,3]=="H"),2])`
+    * Question 7. "Fill in the blank with the correct numerical quantity: This sample consists of `r length(unique(cereal_dat[which(cereal_dat[,3]=="H"),2]))` hot cereals and ____ cold cereals." Answer: `r dim(cereal_dat)[1]-length(unique(cereal_dat[which(cereal_dat[,3]=="H"),2]))`
+
+### Lab 2C
+
+* Update Lab 2C Canvas Quiz questions as follows. (Some answers may not change depending on the data.)
+    * Question 1. Select the correct multiple choice option using the boxplot below.
+```{r echo = FALSE, fig.height = 2, fig.width = 5, fig.align = "center"}
+par(mfrow=c(1,2), mar = c(3, 0, 1, 1))
+boxplot(as.numeric(cereal_dat[,4]),horizontal = TRUE,main="")
+```
+    * Question 2. "Provide the numerical quantity of calories for the following percentiles (found under Quantiles) of the distribution of calories:" Answer: `r quantile(as.numeric(cereal_dat[,4]),c(0,.25,.50,.75,1),type=3)`
+    * Question 4. Select the correct multiple choice option using the boxplot below.
+```{r echo = FALSE, fig.height = 2, fig.width = 5, fig.align = "center"}
+par(mfrow=c(1,2), mar = c(3, 0, 1, 1))
+boxplot(as.numeric(cereal_dat[,8]),horizontal = TRUE,main="")
+```
+    * Question 5. "Report the median for fiber (rounded to at most one decimal place)." Answer: `r round(median(as.numeric(cereal_dat[,8])),1)`
+    * Question 8. "What is the mean value of carbohydrates (round to TWO decimal places)? ____" Answer: `r round(mean(as.numeric(cereal_dat[,9])),2)` with margin of 0.01
+    * Question 9. "What is the standard deviation of carbohydrates (round to TWO decimal places)" Answer: `r round(sd(as.numeric(cereal_dat[,9])),2)` with margin of 0.01
+    * Question 11. "What is the new mean of carbohydrates? Round to two decimal places." Answer: `r round(mean(as.numeric(cereal_dat[-(which(as.numeric(cereal_dat[,9])==-1)),9])),2)` with margin of 0.01
+    * Question 13. "After removing the bad outlier, does the distribution of carbohydrates appear to have any more outliers?" Answers: `r if(length(boxplot(as.numeric(cereal_dat[-(which(as.numeric(cereal_dat[,9])==-1)),9]),plot=FALSE)$out)==0){"No"}else{"Yes"}`
+
+### Lab 2D
+* Update Lab 2D Canvas Quiz questions as follows.
+    * Question 4-5. Shelf 2 should have the most sugary cearals. Check this with the following boxplots and alter the answers as necessary. 
+```{r echo = FALSE, fig.height = 2, fig.width = 7, fig.align = "center"}
+par(mfrow=c(1,2), mar = c(5, 5, 1, 1))
+boxplot(as.numeric(cereal_dat[-(which(as.numeric(cereal_dat[,9])==-1)),10])~as.numeric(cereal_dat[-(which(as.numeric(cereal_dat[,9])==-1)),13]), ylab = "sugar content", xlab = "shelf")
+```
+
+\newpage
+
+# Lab 5
+
+```{r, include=FALSE}
+# remove 32 random data points from survey.txt data excluding row 70, used in Labs 5A-5B
+survey_dat = as.matrix(read.table("survey.txt", sep = "", header = TRUE)); survey_colnames = colnames(survey_dat)
+survey_dat = as.matrix(survey_dat[-sample((1:dim(survey_dat)[1])[-70],32),1:dim(survey_dat)[2]]); colnames(survey_dat) <- survey_colnames
+write.table(survey_dat, file=sprintf("survey_%s.txt",quarter), row.names = FALSE, quote = FALSE)
+
+p_heavy = mean(survey_dat[-which(is.na(survey_dat[,9])),9] == "Heavy")
+p_freq = mean(survey_dat[-which(is.na(survey_dat[,9])),8] == "Freq")
+n = length(survey_dat[-which(is.na(survey_dat[,9])),8])
+p_heavy_and_freq = length(intersect(which(survey_dat[-which(is.na(survey_dat[,9])),8] == "Freq"),which(survey_dat[-which(is.na(survey_dat[,9])),9] == "Heavy")))/n
+p_heavy_given_freq = p_heavy_and_freq / p_freq
+p_freq_given_heavy = p_heavy_and_freq / p_heavy
+```
+
+### Lab 5A
+
+* Upload "`r sprintf("survey_%s.txt",quarter)`" to Canvas Files. 
+* Update "survey.txt" to "`r sprintf("survey_%s.txt",quarter)`" in introduction of Lab 5A Canvas Quiz. 
+* Update Lab 5A Canvas Quiz questions as follows. (Be aware of possible changes in the question text. Some answers may not change depending on the data.)
+    * Update the text before Question 1, "This data frame contains the responses of 205 Statistics I students at the University of Adelaide to a number of questions..."
+    * Question 2. Select the correct multiple choice option using the histogram below.
+    ```{r echo = FALSE, fig.height = 2, fig.width = 5, fig.align = "center"}
+par(mfrow=c(1,2), mar = c(3, 0, 1, 1))
+hist(as.numeric(survey_dat[,12]),main="")
+```
+    * Question 3. "What is the mean for Age (round to two decimal places)?" Answer: `r round(mean(as.numeric(survey_dat[,12])),2)` with margin of 0.01
+    * Question 4. "What is the standard deviation for Age (round to two decimal places)?" Answer: `r round(sd(survey_dat[,12]),2)` with margin of 0.01
+    * Question 5. "Are there any outliers?" Answer: `r if(length(boxplot(as.numeric(survey_dat[,12]),plot=FALSE)$out)==0){"No"}else{"Yes"}`
+  
+### Lab 5B
+
+* Update Lab 5B Canvas Quiz questions as follows. (Be aware of possible changes in the question text. Some answers may not change depending on the data.)
+    * Update the text before Question 1, "Next make a table of Exer (how often the student exercises) by Smoke (how much the student smokes). If you haven't noticed yet, Row `r which(is.na(survey_dat[,9]))` does not have an entry for Smoke. For our purposes, we will simply omit this person from our observations between Exer and Smoke. Recall that we can exclude a row highlighting that row (Row `r which(is.na(survey_dat[,9]))`) and then go to the red arrow on the bottom left next to Row and select Exclude/Unexclude.  You should no have a red circle with a slash through it by Row `r which(is.na(survey_dat[,9]))`... REMEMBER THAT WE ARE NOW WORKING WITH 205 STUDENTS NOT 204."
+    * Question 1. "If a student is randomly chosen from this set, what is the probability they are a Heavy smoker (keep answer in decimal form and round to THREE decimal places)? ____" Answer: `r round(p_heavy,3)` with margin 0.001
+    * Question 2. "What is the probability that a randomly chosen student Frequently exercises (keep answer in decimal form and round to THREE decimal places)? ___
+" Answer: `r round(p_freq,3)` with margin 0.001
+    * Question 3. "What is the probability that a randomly chosen student is a Heavy smoker AND Frequently exercises (keep answer in decimal form and round to THREE decimal places)? ____" Answer: `r round(p_heavy_and_freq,3)` with margin 0.001
+    * Question 4. "What is the probability that a randomly chosen student is a Heavy smoker OR Frequently exercises (keep answer in decimal form and round to THREE decimal places)? ____" Answer: `r round(p_heavy + p_freq - p_heavy_and_freq,3)` with margin 0.003
+    * Question 5. "What is the probability that a randomly chosen student is a Heavy smoker GIVEN that they Frequently exercise (keep answer in decimal form and round to THREE decimal places)? ____" Answer: `r round(p_heavy_given_freq,3)` with margin 0.003
+    * Question 6. "What is the probability that a randomly chosen student Frequently exercises GIVEN that they are a Heavy smoker (keep answer in decimal form and round to THREE decimal places)? ____" Answer: `r round(p_freq_given_heavy,3)` with margin 0.003
+    * Question 7. "Suppose these 204 students... Lower bound for 95% CI: (_____" Answer: `r round(p_freq - (1.96*sqrt(p_freq*(1-p_freq)/n)),3)` with margin 0.003
+    * Question 8. "Upper bound for the 95% CI: ,____)" Answer: `r round(p_freq + (1.96*sqrt(p_freq*(1-p_freq)/n)),3)` with margin 0.003
+    
+\newpage
+
+# Lab 7
+
+```{r, include=FALSE}
+# remove 21 random data points from mercury.txt data, used in Labs 7A-7D and 8C-8D
+mercury_dat = as.matrix(read.table("mercury.txt", sep = "", header = TRUE)); mercury_colnames = colnames(mercury_dat)
+mercury_dat = as.matrix(mercury_dat[-sample((1:dim(mercury_dat)[1]),21),1:dim(mercury_dat)[2]]); colnames(mercury_dat) <- mercury_colnames
+write.table(mercury_dat, file=sprintf("mercury_%s.txt",quarter), row.names = FALSE, quote = FALSE)
+
+xbar_1 = mean(mercury_dat[which(mercury_dat[,1]==1),5])
+s_1 = sd(mercury_dat[which(mercury_dat[,1]==1),5])
+n_1 = length(mercury_dat[which(mercury_dat[,1]==1),5])
+xbar_2 = mean(mercury_dat[which(mercury_dat[,1]==2),5])
+s_2 = sd(mercury_dat[which(mercury_dat[,1]==2),5])
+n_2 = length(mercury_dat[which(mercury_dat[,1]==2),5])
+dfs = min((n_1-1),(n_2-1))
+```
+
+### Lab 7A
+
+* Upload "`r sprintf("mercury_%s.txt",quarter)`" to Canvas Files. 
+* Update "mercury.txt" to "`r sprintf("mercury_%s.txt",quarter)`" in introduction of Lab 7A Canvas Quiz. 
+* Update Lab 7A Canvas Quiz questions as follows. (Some answers may not change depending on the data.)
+    * Question 2. "How many fish were caught in each river?" Answer: River 1 - `r sum(mercury_dat[,1]==1)`, River 2 - `r sum(mercury_dat[,1]==2)`
+    * Question 3. "Which station caught the most fish and how many did they catch?" Answer: Station - `r unique(mercury_dat[,2])[order(tabulate(match(mercury_dat[,2], unique(mercury_dat[,2]))), decreasing = TRUE)[1]]`, Fish - `r max(tabulate(match(mercury_dat[,2], unique(mercury_dat[,2]))))`
+    * Question 4. "Which stations caught the least fish, and how many did they catch?" Answer: Station - `r unique(mercury_dat[,2])[order(tabulate(match(mercury_dat[,2], unique(mercury_dat[,2]))), decreasing = FALSE)[1:length(which(tabulate(match(mercury_dat[,2], unique(mercury_dat[,2])))==min(tabulate(match(mercury_dat[,2], unique(mercury_dat[,2]))))))]]`, Fish - `r which(tabulate(match(mercury_dat[,2], unique(mercury_dat[,2])))==min(tabulate(match(mercury_dat[,2], unique(mercury_dat[,2])))))`
+    * Question 5. Select the correct multiple choice option using the histogram below.
+    ```{r echo = FALSE, fig.height = 2, fig.width = 5, fig.align = "center"}
+par(mfrow=c(1,2), mar = c(3, 0, 1, 1))
+hist(as.numeric(log(mercury_dat[,4])),ylab="log(weight)",main="")
+```
+    * Question 6. Select the correct multiple choice option using the histogram below.
+    ```{r echo = FALSE, fig.height = 2, fig.width = 5, fig.align = "center"}
+par(mfrow=c(1,2), mar = c(3, 0, 1, 1))
+hist(as.numeric(mercury_dat[,5]),ylab="mercury",main="")
+```
+    * Question 7. "What is the observed mean of mercury (round answers to THREE decimal places)?" Answer: `r round(mean(mercury_dat[,5]),3)` with margin 0.001
+    * Question 8. "What is the observed standard deviation of mercury (round answers to THREE decimal places)?" Answer: `r round(sd(mercury_dat[,5]),3)` with margin 0.001
+
+### Lab 7B
+
+* Update Lab 7B Canvas Quiz questions as follows. (For multiple choice questions with numeric answers, also alter the wrong answers slightly. Be aware of possible changes in the question text.)
+    * Question 2. "There are 150 fish, so we have 149 degrees of freedom. The appropriate t value from the table is `r round(qt(0.975,df=149),3)`... CI lower bound : ____" Answer: `r round( mean(mercury_dat[,5]) - (qt(0.975,df=149)*sd(mercury_dat[,5])/sqrt(length(mercury_dat[,5]))),2)` with margin 0.02
+    * Question 3. "CI upper bound : ____ " Answer: `r round( mean(mercury_dat[,5]) + (qt(0.975,df=149)*sd(mercury_dat[,5])/sqrt(length(mercury_dat[,5]))),2)` with margin 0.02
+    * Question 7. "Compute your test statistic..." Answer: Test stat = `r round((mean(mercury_dat[,5]) - 1)/(sd(mercury_dat[,5])/sqrt(length(mercury_dat[,5]))),2)` Critical Region: t > `r round(qt(0.99,df=length(mercury_dat[,5])-1),2)`
+    * Question 8-9. Select the correct multiple choice options using the answer to Question 7. 
+    * Question 10. "In the test information that appears, find the line for Test Statistic. What is the value given in JMP?" Answer: `r round((mean(mercury_dat[,5]) - 1)/(sd(mercury_dat[,5])/sqrt(length(mercury_dat[,5]))),2)`
+    * Question 11. "What is the appropriate p-value for the test you did? Is it consistent with previous answers?" Answer: p-value = `r round(1-pt((mean(mercury_dat[,5]) - 1)/(sd(mercury_dat[,5])/sqrt(length(mercury_dat[,5]))),df=length(mercury_dat[,5])-1),4)`; yes
+    * Question 12. "Interpret the meaning of this p-value in the context of this problem." Answer: The p-value is the probability of observing another such random sample of size 150 with test statistic greater than `r round((mean(mercury_dat[,5]) - 1)/(sd(mercury_dat[,5])/sqrt(length(mercury_dat[,5]))),2)` under the null hypothesis.
+
+### Lab 7C
+
+* Update Lab 7C Canvas Quiz questions as follows. (For multiple choice questions with numeric answers, also alter the wrong answers slightly.)
+    * Question 1. "Proportion of small fish in sample : ____ " Answer: `r round(mean(mercury_dat[,3]<33),3)` with margin 0.001
+    * Question 5. "Compute your test statistic by hand, and state the critical region. " Answer: Test stat = `r round((round(mean(mercury_dat[,3]<33),3)-0.125)/sqrt(0.125*(1-0.125)/length(mercury_dat[,3])),2)` critical region: z > 2.33
+    * Question 6-7. Select the correct multiple choice options using the answer to Question 5.
+    * Question 8. "What is the p-value given by JMP (round to FOUR decimal places)?" Answer: `r max(0.0001,round(1-pnorm((round(mean(mercury_dat[,3]<33),3)-0.125)/sqrt(0.125*(1-0.125)/length(mercury_dat[,3]))),4))`
+
+### Lab 7D
+
+* Update Lab 7D Canvas Quiz questions as follows. (For multiple choice questions with numeric answers, also alter the wrong answers slightly.)
+    * Question 1. "What are the sample mean, sample standard deviation, and sample size for mercury concentration for each river (round to TWO decimal places)? River 1: x-bar1 = ____" Answer: `r round(xbar_1,2)` with margin 0.01
+    * Question 2. "River 1: s1 = ____" Answer: `r round(s_1,2)` with margin 0.01
+    * Question 3. "River 2: x-bar2 = ____" Answer: `r round(xbar_2,2)` with margin 0.01
+    * Question 4. "River 2: s2 = ____" Answer: `r round(s_2,2)` with margin 0.01
+    * Question 7. "State the test statistic and its sampling distribution (assume the standard deviations of the two populations are NOT the same - the more conservative approach)..." Answer: Test stat A and Sampling Distribution: t-distribution with `r dfs` degrees of freedom.
+    * Question 8. "Compute the test statistic by hand (provide the absolute value and round to TWO decimal places)." Answer: `r abs(round((xbar_1-xbar_2)/sqrt((s_1^2/n_1)+(s_2^2/n_2)),2))` with margin 0.03
+    * Question 9. "State the critical region." Answer: |t| > `r round(qt(0.995,df=dfs),2)`
+    * Question 10-11. Select the correct multiple choice options using the answer to Question 9.
+    * Question 12. "What is the value of the test statistic (t Ratio) computed by JMP?" Answer: `r abs(round((xbar_1-xbar_2)/sqrt((s_1^2/n_1)+(s_2^2/n_2)),2))`
+    * Question 14. "What is the p-value for this test assuming the two population standard deviations are NOT the same?" Answer: `r round(2*pt(round((xbar_1-xbar_2)/sqrt((s_1^2/n_1)+(s_2^2/n_2)),2),df=dfs),4)`
+
+\newpage
+
+# Lab 8
+
+```{r, include=FALSE}
+# remove 2 random data points from anscombe.txt data excluding rows 3 and 8, used in Labs 8A-8B
+anscombe_dat = as.matrix(read.table("anscombe.txt", sep = "", header = TRUE)); anscombe_colnames = colnames(anscombe_dat)
+anscombe_dat = as.matrix(anscombe_dat[-sample((1:dim(anscombe_dat)[1])[-c(3,8)],2),1:dim(anscombe_dat)[2]]); colnames(anscombe_dat) <- anscombe_colnames
+write.table(anscombe_dat, file=sprintf("anscombe_%s.txt",quarter), row.names = FALSE, quote = FALSE)
+# 8A
+lm_1 = lm(anscombe_dat[,2]~anscombe_dat[,1])
+sum_lm_1 = summary(lm_1)
+# 8B
+lm_2 = lm(anscombe_dat[,4]~anscombe_dat[,3])
+sum_lm_2 = summary(lm_2)
+lm_3 = lm(anscombe_dat[,6]~anscombe_dat[,5])
+sum_lm_3 = summary(lm_3) 
+lm_4 = lm(anscombe_dat[,8]~anscombe_dat[,7])
+sum_lm_4 = summary(lm_4) 
+# 8C
+lm_5 = lm(mercury_dat[,5]~mercury_dat[,3])
+sum_lm_5 = summary(lm_5)
+# 8D
+lm_6 = lm(mercury_dat[,5]~mercury_dat[,4])
+sum_lm_6 = summary(lm_6)
+```
+
+### Lab 8A
+* Upload "`r sprintf("anscombe_%s.txt",quarter)`" to Canvas Files. 
+* Update "anscombe.txt" to "`r sprintf("ansombe_%s.txt",quarter)`" and "mercury.txt" to "`r sprintf("mercury_%s.txt",quarter)`" in introduction of Lab 8A Canvas Quiz. 
+* Update Lab 8A Canvas Quiz questions as follows. (For multiple choice questions with numeric answers, also alter the wrong answers slightly.)
+     * Question 2. "What does JMP compute the correlation (r) between x1 and y1 to be (round to TWO decimal places)?" Answer: `r round(cor(anscombe_dat[,1],anscombe_dat[,2]),2)`
+     * Question 3. "What is the value of the estimate of the intercept reported in JMP (under Parameter Estimates)?  (round to two decimal places.)" Answer: `r round(lm_1$coefficients[1],2)` with margin 0.01
+     * Question 4. "What is the value of the estimate of the slope reported in JMP (under Parameter Estimates)?  (round to two decimal places.)" Answer: `r round(lm_1$coefficients[2],2)` with margin 0.01
+     * Question 5. "Which is the value of the coefficient of determination" Answer: `r round(cor(anscombe_dat[,1],anscombe_dat[,2])^2,4)` 
+     * Question 7. "Is the p-value for testing the significance of the slope significant (using $\alpha=0.05$)?" Answer: `r if(sum_lm_1$coefficients[2,4]>0.05){"No"}else{"Yes"}`
+
+### Lab 8B
+
+* Update Lab 8B Canvas Quiz questions as follows. (For multiple choice questions with numeric answers, also alter the wrong answers slightly.)
+    * Question 3. "Fill in the blanks with the appropriate point estimate for $\beta_0$ and $\beta_1$, respectively, to obtain the fitted regression line (round to TWO decimal places).  " Answer: Int - `r round(lm_2$coefficients[1],2)`, slope - `r round(lm_2$coefficients[2],2)`
+    * Question 4. "What is the $R^2$ (round to THREE decimal places)? " Answer: `r round(cor(anscombe_dat[,3],anscombe_dat[,4])^2,3)` 
+    * Question 5. "What is the p-value for the slope, which you should notice is the same p-value for the model fit (round to THREE decimal places)?" Answer: `r max(0.0001,round(sum_lm_2$coefficients[2,4],3))`
+    * Check that the answer to Question 6 is correct given the data. 
+    * Question 8. "What are the regression line, R2, and p-value for predicting y3 from x3 (round to THREE decimal places)?" Answer: Int - `r round(lm_3$coefficients[1],2)`, slope - `r round(lm_3$coefficients[2],2)`
+    * Question 9. "$R^2=$" Answer: `r round(cor(anscombe_dat[,5],anscombe_dat[,6])^2,3)`
+    * Question 10. "p-value = " Answer: `r max(0.0001,round(sum_lm_3$coefficients[2,4],3))`
+    * Question 11. "What are the regression line, R2, and p-value for predicting y4 from x4 (round to THREE decimal places)?" Answer: Int - `r round(lm_4$coefficients[1],2)`, slope - `r round(lm_4$coefficients[2],2)`
+    * Question 12. "$R^2=$" Answer: `r round(cor(anscombe_dat[,7],anscombe_dat[,8])^2,3)`
+    * Question 13. "p-value = " Answer: `r max(0.0001,round(sum_lm_4$coefficients[2,4],3))`
+
+### Lab 8C
+* Update Lab 8C Canvas Quiz questions as follows. (For multiple choice questions with numeric answers, also alter the wrong answers slightly.)
+    * Question 2. "Intercept:___" Answer: `r round(lm_5$coefficients[1],3)` with margin 0.001
+    * Question 3. "Slope:____" Answer: `r round(lm_5$coefficients[2],3)` with margin 0.001
+    * Question 4. "Mercury-hat = ____ ppm" Answer: `r round(lm_5$coefficients[1] + 45*lm_5$coefficients[2],3)` with margin 0.003
+    * Question 5. "Interpret the meaning of the $R^2$ value in the context of this problem." Answer: `r round(100*cor(mercury_dat[,5],mercury_dat[,3])^2,1)`% of the variation in mercury concentration can be explained by length.
+    * Question 6. "What is the p-value for your hypotheses (round to FOUR decimal places)?" Answer: `r max(0.0001,round(sum_lm_5$coefficients[2,4],4))`
+    * Question 7-8. Select the correct multiple choice options using the answer to Question 6. 
+
+### Lab 8D
+* Update Lab 8D Canvas Quiz questions as follows. (For multiple choice questions with numeric answers, also alter the wrong answers slightly.)
+    * Question 1. "Intercept:___" Answer: `r round(lm_6$coefficients[1],4)` with margin 0.001
+    * Question 2. "Slope:____" Answer: `r as.character(round(lm_6$coefficients[2],4))` with margin 0.0001
+    * Question 3. "Interpret the meaning of the slope in the context of this problem." Answer: For every unit increase in weight, we expect the mercury concentration to increase by `r as.character(round(lm_6$coefficients[2],4))` ppm.
+    * Question 4. "Interpret the meaning of the intercept in the context of this problem." Answer: When weight is at zero, we expect mercury concentration to be `r round(lm_6$coefficients[1],4)` ppm.
+    * Question 5. "Mercury-hat = ____ ppm" Answer: `r round(lm_6$coefficients[1] + 1700*lm_6$coefficients[2],3)` with margin 0.003
+    * Question 6. "What is the $R^2$ value for testing the regression (round to FOUR decimal places)?" Answer: `r round(cor(mercury_dat[,5],mercury_dat[,4])^2,4)` with margin 0.0001
+    * Question 7. "What is the p-value for testing the regression (round to FOUR decimal places)?" Answer: `r max(0.0001,round(sum_lm_6$coefficients[2,4],4))`
+    
+\newpage
+
+# Lab 9
+
+```{r, include=FALSE}
+# remove 10 random data points from crime.txt data, used in Labs 9A-9B
+crime_dat = as.matrix(read.table("crime.txt", sep = "", header = TRUE)); crime_colnames = colnames(crime_dat)
+crime_dat = as.matrix(crime_dat[-sample((1:dim(crime_dat)[1]),1),1:dim(crime_dat)[2]]); colnames(crime_dat) <- crime_colnames
+write.table(crime_dat, file=sprintf("crime_%s.txt",quarter), row.names = FALSE, quote = FALSE)
+# 9A
+lm_1 = lm(crime_dat[,1]~crime_dat[,2]+crime_dat[,3]+crime_dat[,4]+crime_dat[,5]+crime_dat[,6])
+sum_lm_1 = summary(lm_1)
+# 9B
+lm_2 = lm(crime_dat[,1]~crime_dat[,2]+crime_dat[,3]+crime_dat[,5]+crime_dat[,6])
+sum_lm_2 = summary(lm_2)
+lm_3 = lm(crime_dat[,1]~crime_dat[,2]+crime_dat[,5]+crime_dat[,6])
+sum_lm_3 = summary(lm_3)
+```
+
+### Lab 9A
+* Upload "`r sprintf("crime_%s.txt",quarter)`" to Canvas Files. 
+* Update "crime.txt" to "`r sprintf("crime_%s.txt",quarter)`" in introduction of Lab 9A Canvas Quiz. 
+* Update Lab 9A Canvas Quiz questions as follows. (For multiple choice questions with numeric answers, also alter the wrong answers slightly.)
+    * Question 4. "What is the $R^2$ for this model (round to FOUR decimal places)?" Answer: `r round(sum_lm_1$r.squared,4)` with margin 0.0001
+    * Question 5. "What is the Adjusted $R^2$ for this model (round to FOUR decimal places)?" Answer: `r round(sum_lm_1$adj.r.squared,4)` with margin 0.0001
+    * Question 7. "The test statistic is an F, with degrees of freedom as shown. What is the p-value computed by JMP (shown under Prob > F). Round to FOUR decimal places)?" Answer: `r max(0.0001,round(1-pf(sum_lm_1$fstatistic[1],df1=sum_lm_1$fstatistic[2],df2=sum_lm_1$fstatistic[3]),4))` 
+    * Question 8. Select the correct multiple choice option using the answer to Question 7. 
+    * Question 9. "Fill in the blanks with the estimates of the slope parameters to obtain the fitted regression equation (round to TWO decimal places)?" Answer: crime-hat = `r round(lm_1$coefficients[1],2)`  +  `r round(lm_1$coefficients[2],2)` pcmetro  +  `r round(lm_1$coefficients[3],2)` pctwhite +  `r round(lm_1$coefficients[4],2)` pcths + `r round(lm_1$coefficients[5],2)` poverty + `r round(lm_1$coefficients[6],2)` single
+    * Question 11. "What is the p-value for this test (use FOUR decimal places)?" Answer: `r max(0.0001,round(sum_lm_1$coefficients[3,4],4))`
+    * Question 12. Select the correct multiple choice option using the answer to Question 11. 
+    * Question 13. "Which of the five variables is LEAST significant?" Answer: `r c("pcmetro","pctwhite","pcths","poverty","single")[which.max(sum_lm_1$coefficients[2:6,4])]`
+  
+### Lab 9B
+
+* Update Lab 9B Canvas Quiz questions as follows. (For multiple choice questions with numeric answers, also alter the wrong answers slightly.)
+    * Question 2. "What is the p-value for the overall model fit (round to FOUR decimal places)?" Answer: `r max(0.0001,round(1-pf(sum_lm_2$fstatistic[1],df1=sum_lm_2$fstatistic[2],df2=sum_lm_2$fstatistic[3]),4))`
+    * Question 3. Select the correct multiple choice option using the answer to Question 2. 
+    * Question 4. "Interpret the meaning of the slope coefficient for single in the context of this problem." Answer: For every percentage increase of single parents, we expect the number of violent crimes per 100,000 people to increase by `r round(lm_2$coefficients[5],2)`. 
+    * Question 5. "Are any of the variables still not significant? Which one(s)?" Answer: `r c("pcmetro","pctwhite","poverty","singe")[which(sum_lm_2$coefficients[2:5,4]>0.05)]`
+    * Question 6. "What is your final regression equation?" Check that all variables in this EQ are significant using the output below. Alter the answer as necessary. 
+    Answer: crime-hat = `r round(lm_3$coefficients[1],2)` + `r round(lm_3$coefficients[2],2)` pctmetro + `r round(lm_3$coefficients[3],2)` poverty + `r round(lm_3$coefficients[4],2)` single. 
+```{r,echo=FALSE, indent = "            "}
+summary(lm(crime~pctmetro+poverty+single,data = as.data.frame(crime_dat[,c(1,2,5,6)])))$coefficients 
+```
+    * Question 7. "Using the final model, find the predicted crime (number of violent crimes per 100,000 people) when pctmetro = 50, pctwhite = 90, poverty = 15, and single = 10. Note that depending on your final model you may or may not need all the variable values. (Round to TWO decimal places and be sure to use the EXACT numbers in the final regression equation)." You will need to double check this matches the EQ in Question 6. Answer: `r round(lm_3$coefficients[1] + lm_3$coefficients[2]*50 +  lm_3$coefficients[3]*15 +  lm_3$coefficients[4]*10,2)`
+
+\newpage
+
+# Lab 10
+
+```{r, include=FALSE}
+# remove 8 random data points from speed.txt data, used in Labs 10A-10C
+speed_dat = as.matrix(read.table("speed.txt", sep = "", header = TRUE)); speed_colnames = colnames(speed_dat)
+speed_dat = as.matrix(speed_dat[-sample((1:dim(speed_dat)[1]),8),1:dim(speed_dat)[2]]); colnames(speed_dat) <- speed_colnames
+write.table(speed_dat, file=sprintf("speed_%s.txt",quarter), row.names = FALSE, quote = FALSE)
+# 10A
+lm_1 = lm(speed_dat[,1]~speed_dat[,2])
+sum_lm_1 = summary(lm_1)
+# 10B
+lm_2 = lm(speed_dat[,1]~speed_dat[,2]+I((speed_dat[,2]-mean(speed_dat[,2]))^2))
+sum_lm_2 = summary(lm_2)
+lm_3 = lm(speed_dat[,1]~speed_dat[,2]+I((speed_dat[,2]-mean(speed_dat[,2]))^2)+I((speed_dat[,2]-mean(speed_dat[,2]))^3)+I((speed_dat[,2]-mean(speed_dat[,2]))^4))
+sum_lm_3 = summary(lm_3)
+
+```
+
+### Lab 10A
+* Upload "`r sprintf("speed_%s.txt",quarter)`" to Canvas Files. 
+* Update "speed.txt" to "`r sprintf("speed_%s.txt",quarter)`" in introduction of Lab 10A Canvas Quiz. 
+* Update Lab 10A Canvas Quiz questions as follows. (For multiple choice questions with numeric answers, also alter the wrong answers slightly.)
+    * Question 2. "$R^2 =$  ____" Answer: `r round(sum_lm_1$r.squared,3)` with margin 0.001
+    * Question 3. "Adjusted $R^2 =$  ____" Answer: `r round(sum_lm_1$adj.r.squared,3)` with margin 0.001
+
+### Lab 10B
+* Update Lab 10B Canvas Quiz questions as follows. (Be aware of possible changes in the question text. For multiple choice questions with numeric answers, also alter the wrong answers slightly.)
+    * Question 1. "$R^2 =$  ____" Answer: `r round(sum_lm_2$r.squared,3)` with margin 0.001
+    * Question 2. "Adjusted $R^2 =$  ____" Answer: `r round(sum_lm_2$adj.r.squared,3)` with margin 0.001
+    * Question 3. "p-value =  ____" Answer: `r max(0.0001,round(1-pf(sum_lm_2$fstatistic[1],df1=sum_lm_2$fstatistic[2],df2=sum_lm_2$fstatistic[3]),4))` 
+    * Question 5. "Fill in the blanks below with the estimated regression parameters JMP provides (round to THREE decimal places):" Answer: $\hat{MPG}$ = `r round(lm_2$coefficients[1],3)`+ `r round(lm_2$coefficients[2],3)` MPG + `r round(lm_2$coefficients[3],3)` (MPH-`r mean(speed_dat[,2])` $)^2$
+      * Question 6. "Are all of the regression parameters statistically significant?:" 
+Answer: Select the correct multiple choice option using the P values.
+    * Question 8. "$R^2 =$  ____" Answer: `r round(sum_lm_3$r.squared,3)` with margin 0.001
+    * Question 9. "Adjusted $R^2 =$  ____" Answer: `r round(sum_lm_3$adj.r.squared,3)` with margin 0.001
+    * Question 11. "Which regression parameters are significant (select all that are significant at the 0.05 level)?" Answer: `r c("MPH (linear effect)",sprintf("(MPH - %s)^2 (quadratic effect)",mean(speed_dat[,2])),sprintf("(MPH - %s)^3 (cubic effect)",mean(speed_dat[,2])),sprintf("(MPH - %s)^4 (quartic effect)",mean(speed_dat[,2])))[which(sum_lm_3$coefficients[1:4,4]>0.05)]`
+
+### Lab 10C
+* Update Lab 10C Canvas Quiz questions as follows. 
+    * Questions 2-3. To update these questions you will need to run the 4th degree polynomial model in JMP (detailed in Lab 10B) on the data "`r sprintf("speed_%s.txt",quarter)`" and use the JMP Prediction Profiler as described in the text of the Lab 10C.
+
+

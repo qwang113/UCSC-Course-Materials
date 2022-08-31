@@ -1,0 +1,723 @@
+---
+title: "206hw4 "
+author: "Qi Wang"
+date: "2022/2/21"
+output: 
+  pdf_document:
+    latex_engine: xelatex   
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls())
+```
+#Question 1
+
+```{r}
+theta_1 <- 1.5
+theta_2 <- 2
+f_invG <- function(x){
+  fx <- x^(-3/2)*exp(-theta_1*x - theta_2/x)
+  return(fx)
+}
+alpha <- 1
+beta <- 1
+pp <- function(x){
+  fx <- dgamma(x, shape = alpha, scale = beta)
+}
+
+IMH <- rep(NA, 10000)
+IMH[1] <- 0.1
+for (i in 1:length(IMH)) {
+  new <- rgamma(1, shape = alpha, scale = beta)
+  p <-  f_invG(new)*pp(IMH[i]) / (f_invG(IMH[i])*pp(new))  
+  index <- runif(1)
+  if(index <= p){
+    IMH[i+1] <- new
+  }else{
+    IMH[i+1] <- IMH[i]
+  }
+}
+thin <- seq(from = 2000, to = 10000, by = 8)
+IMH_final <- IMH[thin]
+plot(IMH_final, type = 'l')
+acf(IMH_final)
+```
+
+```{r}
+mean(IMH_final)
+mean(1/IMH_final)
+sqrt(theta_2/theta_1)
+sqrt(theta_1/theta_2) + 1/(2*theta_2)
+```
+
+```{r}
+theta_1 <- 1.5
+theta_2 <- 2
+log_invG <- function(x){
+  fx <- exp(-x/2) * exp(  -theta_1*exp(x) - theta_2/exp(x)  )
+  return(fx)
+}
+
+sigma <- 2
+
+RMH <- rep(NA, 10000)
+RMH[1] <- 1
+for (i in 1:length(RMH)) {
+  new <- rnorm(1, mean = RMH[i], sd = sqrt(sigma))
+  p <-  log_invG(new) / log_invG(IMH[i])  
+  index <- runif(1)
+  if(index <= p){
+    RMH[i+1] <- new
+  }else{
+    RMH[i+1] <- RMH[i]
+  }
+}
+thin <- seq(from = 2000, to = 10000, by = 8)
+RMH_final_log <- RMH[thin]
+
+RMH_final <- exp(RMH_final_log)
+plot(RMH_final, type = 'l')
+acf(RMH_final)
+```
+
+```{r}
+mean(RMH_final)
+mean(1/RMH_final)
+sqrt(theta_2/theta_1)
+sqrt(theta_1/theta_2) + 1/(2*theta_2)
+```
+
+# Question 2(a): MH-within-Gibbs
+```{r}
+X <- read.table("D:/77/UCSC/study/206b/hw/my-data.txt")
+X <- as.vector(X)
+n <- nrow(X)
+con_w <- function(w, beta){
+  
+  fx <- exp(3*w)/ gamma(exp(w))^n * beta^(n*exp(w)) * prod(X)^(exp(w)-1) * exp(-exp(w))
+  return(fx)
+}
+
+con_z <- function(alpha, z){
+  
+  fx <- exp(z)^(n*alpha + 1) * exp(-exp(z)*sum(X) - 2*exp(z)) 
+  return(fx)
+}
+
+sigma <- 0.2
+
+
+w <- rep(NA, 10000)
+z <- rep(NA, 10000)
+
+w[1] <- 1
+z[1] <- 1
+a = 1
+for (i in 1:length(w)) {
+  z_new <- rnorm(1, z[i], sd = sqrt(sigma))
+  p <- con_z(alpha = exp(w[i]), z = z_new)/con_z(alpha = exp(w[i]), z = z[i])
+  k <- runif(1)
+  if(k <= p ){
+    z[i+1] <- z_new
+  }else{
+    z[i+1] <- z[i]
+  }
+  
+  w_new <- rnorm(1, w[i], sd = sqrt(sigma))
+  p <- con_w(w = w_new, beta = exp(z[i+1]))/con_w(w = w[i], beta = exp(z[i+1]))
+  k <- runif(1)
+  if(k <= p){
+    w[i+1] <- w_new
+  }else{
+    w[i+1] <- w[i]
+  }
+  a = a+1
+  
+}
+```
+
+
+```{r}
+w_final <- exp(w[thin])
+z_final <- exp(z[thin])
+
+par(mfrow = c(1,2))
+plot(w_final, type = 'l' )
+plot(z_final, type = 'l' )
+
+acf(w_final)
+acf(z_final)
+
+CI_a <- c(mean(w_final), mean(z_final), quantile(w_final, 0.025), quantile(z_final, 0.025),quantile(w_final, 0.975), quantile(z_final, 0.975),  mcmcse::ess(w_final),  mcmcse::ess(z_final))
+CI_a <- matrix(CI_a, 4, 2, byrow = T)
+colnames(CI_a) <- c("Alpha", "Beta")
+rownames(CI_a) <- c("Mean", "2.5% Quantile", "97.5% Quantile", "Effective Sample Size")
+knitr::kable(CI_a)
+```
+
+
+# Question 2(b): R-MH
+
+```{r}
+pos_joint_log <- function(w, z){
+  f <- exp(w)^2 / gamma(exp(w))^n * exp(z*( n*exp(w) + 1 )) * prod(X)^(exp(w)-1)*
+    exp(-exp(z)*sum(X)-exp(w)-2*exp(z))*exp(w)*exp(z)
+  return(f)
+}
+
+sigma <- 0.2
+Sigma <- diag(sigma, 2)
+
+param = matrix(NA, nrow = 2, ncol = 10000)
+
+param[1,1] <- 1
+param[2,1] <- 1
+
+
+for (i in 1: (ncol(param)-1) ) {
+  
+  new <- mvtnorm::rmvnorm(1, mean = param[,i], sigma = Sigma)
+  p <- pos_joint_log(w = new[1], z = new[2]) / pos_joint_log(w = param[1,i], z = param[2,i])
+  k <- runif(1)
+  if (k <= p){
+    param[,i+1] <- new
+  }else{
+    param[,i+1] <- param[, i]
+  }
+  
+}
+```
+```{r}
+param_final <- param[,thin]
+
+
+w_final <- exp(param_final[1,])
+z_final <- exp(param_final[2,])
+
+par(mfrow = c(1,2))
+plot(w_final, type = 'l' )
+plot(z_final, type = 'l' )
+
+acf(w_final)
+acf(z_final)
+
+CI_b <- c(mean(w_final), mean(z_final), quantile(w_final, 0.025), quantile(z_final, 0.025),quantile(w_final, 0.975), quantile(z_final, 0.975),  mcmcse::ess(w_final),  mcmcse::ess(z_final))
+CI_b <- matrix(CI_b, 4, 2, byrow = T)
+colnames(CI_b) <- c("Alpha", "Beta")
+rownames(CI_b) <- c("Mean", "2.5% Quantile", "97.5% Quantile", "Effective Sample Size")
+knitr::kable(CI_b)
+
+```
+# Question 2(c): I-MH_Laplace
+```{r}
+
+log_pos <- function(a){
+  f <- 2*a[1] - n*log(gamma(exp(a[1])))+a[2]*(n*exp(a[1])+1)+(exp(a[1])-1)*sum(log(X))-exp(a[2])*sum(X)-exp(a[1])-exp(2*a[2]) +a[1] + a[2]
+  g <- -f
+  return(g)
+}
+
+opt <- optim(par = c(0.8,0), fn = log_pos, hessian = TRUE)
+M <- opt$par
+S <- solve(opt$hessian)
+
+pos_joint_log <- function(w, z){
+  f <- exp(w)^2 / gamma(exp(w))^n * exp(z*( n*exp(w) + 1 )) * prod(X)^(exp(w)-1)*
+    exp(-exp(z)*sum(X)-exp(w)-2*exp(z))*exp(w)*exp(z)
+  return(f)
+}
+
+
+param = matrix(NA, nrow = 2, ncol = 10000)
+
+param[1,1] <- 1
+param[2,1] <- 1
+
+
+for (i in 1: (ncol(param)-1) ) {
+  
+  new <- mvtnorm::rmvnorm(1, mean = M, sigma = S)
+  p <- pos_joint_log(w = new[1], z = new[2]) * mvtnorm::dmvnorm(param[,i], mean = M, sigma = S) / 
+    ( pos_joint_log(w = param[1,i], z = param[2,i]) * mvtnorm::dmvnorm(new, mean = M, sigma = S) )
+  
+  k <- runif(1)
+  if (k <= p){
+    param[,i+1] <- new
+  }else{
+    param[,i+1] <- param[, i]
+  }
+  
+}
+```
+```{r}
+param_final <- param[,thin]
+
+
+w_final <- exp(param_final[1,])
+z_final <- exp(param_final[2,])
+
+par(mfrow = c(1,2))
+plot(w_final, type = 'l' )
+plot(z_final, type = 'l' )
+
+acf(w_final)
+acf(z_final)
+
+CI_c <- c(mean(w_final), mean(z_final), quantile(w_final, 0.025), quantile(z_final, 0.025),quantile(w_final, 0.975), quantile(z_final, 0.975) ,  mcmcse::ess(w_final),  mcmcse::ess(z_final))
+CI_c <- matrix(CI_c, 4, 2, byrow = T)
+colnames(CI_c) <- c("Alpha", "Beta")
+rownames(CI_c) <- c("Mean", "2.5% Quantile", "97.5% Quantile", "Effective Sample Size")
+knitr::kable(CI_c)
+```
+
+
+# Question 4: (alpha = gamma = 1, beta = delta = 0.1)
+
+```{r}
+y <- 
+c(4,5,4,1,0,4,3,4,0,6,3,3,4,0,2,6,3,3,5,4,5,3,1,4,4,1,5,5,3,4,2,5,2,2,3,4,
+2,1,3,2,2,1,1,1,1,3,0,0,1,0,1,1,0,0,3,1,0,3,2,2,0,1,1,1,0,1,0,1,0,0,0,2,1,
+0,0,0,1,1,0,2,3,3,1,1,2,1,1,1,1,2,4,2,0,0,0,1,4,0,0,0,1,0,0,0,0,0,1,0,0,1, 
+0,1)
+n <- length(y)
+
+con_m <- function(m, theta, phi){
+  pm_raw <- rep(NA, n)
+  for (j in 1:n) {
+    pm_raw[j] <- theta^(sum(y[1:j])) * exp(-j*theta)* phi^(sum(y[j+1:n])) * exp(j*phi)
+  }
+  pm_norm <- pm_raw/sum(pm_raw)
+  return(pm_norm)
+}
+m_pos <- rep(NA, 10000)
+theta_pos <- rep(NA, 10000)
+phi_pos <- rep(NA, 10000)
+
+alpha <- 1
+gam <- 1
+beta <- 0.1 
+delta <- 0.1
+
+m_pos[1] <- 10
+theta_pos[1] <- 1
+phi_pos[1] <- 1
+
+for (i in 1:9999) {
+  theta_pos[i+1] <- rgamma(1, shape = sum(y[1:m_pos[i]]) + alpha, rate = m_pos[i] + beta )
+  phi_pos[i+1] <- rgamma(1, shape = sum( y[ (m_pos[i]+1) : n] ) + gam, rate = n - m_pos[i]+ delta)
+  pm_raw <- rep(NA, n)
+  for (j in 1:(n-1)) {
+    pm_raw[j] <- theta_pos[i+1]^(sum(y[1:j])) * exp(-j*theta_pos[i+1])* phi_pos[i+1]^(sum(y[(j+1):n])) * exp(j*phi_pos[i+1])
+  }
+  pm_raw[n] <- theta_pos[i+1]^(sum(y)) * exp(-n*theta_pos[i+1]) * exp(n*phi_pos[i+1])
+  pm_norm <- pm_raw/sum(pm_raw)
+  m_pos[i+1] <- which.max(rmultinom(n = 1, size = 1, prob = pm_norm))
+
+}
+
+
+```
+
+
+```{r}
+m_final <- m_pos[thin]
+theta_final <- theta_pos[thin]
+phi_final <- phi_pos[thin]
+par(mfrow = c(1,3))
+
+plot(m_final, type = 'l')
+plot(theta_final, type = 'l')
+plot(phi_final, type = 'l')
+acf(m_final)
+acf(theta_final)
+acf(phi_final)
+
+CI_4b <- matrix(c(
+  mean(m_final), mean(theta_final), mean(phi_final),
+  quantile(m_final, 0.025),quantile(theta_final, 0.025),quantile(phi_final, 0.025),
+  quantile(m_final, 0.975),quantile(theta_final, 0.975),quantile(phi_final, 0.975),
+  mcmcse::ess(m_final), mcmcse::ess(theta_final),mcmcse::ess(phi_final)
+), nrow = 4, ncol = 3, byrow = TRUE)
+colnames(CI_4b) <- c("M", "Theta", "Phi")
+rownames(CI_4b) <- c("Mean", "2.5% Quantile", "97.5% Quantile", "Effective Sample Size")
+knitr::kable(CI_4b)
+```
+
+
+# Question 4: (alpha = gamma = 1, beta = delta = 10)
+
+```{r}
+y <- 
+c(4,5,4,1,0,4,3,4,0,6,3,3,4,0,2,6,3,3,5,4,5,3,1,4,4,1,5,5,3,4,2,5,2,2,3,4,
+2,1,3,2,2,1,1,1,1,3,0,0,1,0,1,1,0,0,3,1,0,3,2,2,0,1,1,1,0,1,0,1,0,0,0,2,1,
+0,0,0,1,1,0,2,3,3,1,1,2,1,1,1,1,2,4,2,0,0,0,1,4,0,0,0,1,0,0,0,0,0,1,0,0,1, 
+0,1)
+n <- length(y)
+
+con_m <- function(m, theta, phi){
+  pm_raw <- rep(NA, n)
+  for (j in 1:n) {
+    pm_raw[j] <- theta^(sum(y[1:j])) * exp(-j*theta)* phi^(sum(y[j+1:n])) * exp(j*phi)
+  }
+  pm_norm <- pm_raw/sum(pm_raw)
+  return(pm_norm)
+}
+m_pos <- rep(NA, 10000)
+theta_pos <- rep(NA, 10000)
+phi_pos <- rep(NA, 10000)
+
+alpha <- 1
+gam <- 1
+beta <- 10 
+delta <- 10
+
+m_pos[1] <- 10
+theta_pos[1] <- 1
+phi_pos[1] <- 1
+
+for (i in 1:9999) {
+  theta_pos[i+1] <- rgamma(1, shape = sum(y[1:m_pos[i]]) + alpha, rate = m_pos[i] + beta )
+  phi_pos[i+1] <- rgamma(1, shape = sum( y[ (m_pos[i]+1) : n] ) + gam, rate = n - m_pos[i]+ delta)
+  pm_raw <- rep(NA, n)
+  for (j in 1:(n-1)) {
+    pm_raw[j] <- theta_pos[i+1]^(sum(y[1:j])) * exp(-j*theta_pos[i+1])* phi_pos[i+1]^(sum(y[(j+1):n])) * exp(j*phi_pos[i+1])
+  }
+  pm_raw[n] <- theta_pos[i+1]^(sum(y)) * exp(-n*theta_pos[i+1]) * exp(n*phi_pos[i+1])
+  pm_norm <- pm_raw/sum(pm_raw)
+  m_pos[i+1] <- which.max(rmultinom(n = 1, size = 1, prob = pm_norm))
+
+}
+
+
+```
+
+
+```{r}
+m_final <- m_pos[thin]
+theta_final <- theta_pos[thin]
+phi_final <- phi_pos[thin]
+par(mfrow = c(1,3))
+
+plot(m_final, type = 'l')
+plot(theta_final, type = 'l')
+plot(phi_final, type = 'l')
+acf(m_final)
+acf(theta_final)
+acf(phi_final)
+
+CI_4b <- matrix(c(
+  mean(m_final), mean(theta_final), mean(phi_final),
+  quantile(m_final, 0.025),quantile(theta_final, 0.025),quantile(phi_final, 0.025),
+  quantile(m_final, 0.975),quantile(theta_final, 0.975),quantile(phi_final, 0.975),
+  mcmcse::ess(m_final), mcmcse::ess(theta_final),mcmcse::ess(phi_final)
+), nrow = 4, ncol = 3, byrow = TRUE)
+colnames(CI_4b) <- c("M", "Theta", "Phi")
+rownames(CI_4b) <- c("Mean", "2.5% Quantile", "97.5% Quantile", "Effective Sample Size")
+knitr::kable(CI_4b)
+```
+
+# Question 4: (alpha = gamma = 10, beta = delta = 10)
+
+```{r}
+y <- 
+c(4,5,4,1,0,4,3,4,0,6,3,3,4,0,2,6,3,3,5,4,5,3,1,4,4,1,5,5,3,4,2,5,2,2,3,4,
+2,1,3,2,2,1,1,1,1,3,0,0,1,0,1,1,0,0,3,1,0,3,2,2,0,1,1,1,0,1,0,1,0,0,0,2,1,
+0,0,0,1,1,0,2,3,3,1,1,2,1,1,1,1,2,4,2,0,0,0,1,4,0,0,0,1,0,0,0,0,0,1,0,0,1, 
+0,1)
+n <- length(y)
+
+con_m <- function(m, theta, phi){
+  pm_raw <- rep(NA, n)
+  for (j in 1:n) {
+    pm_raw[j] <- theta^(sum(y[1:j])) * exp(-j*theta)* phi^(sum(y[j+1:n])) * exp(j*phi)
+  }
+  pm_norm <- pm_raw/sum(pm_raw)
+  return(pm_norm)
+}
+m_pos <- rep(NA, 10000)
+theta_pos <- rep(NA, 10000)
+phi_pos <- rep(NA, 10000)
+
+alpha <- 10
+gam <- 10
+beta <- 10 
+delta <- 10
+
+m_pos[1] <- 10
+theta_pos[1] <- 1
+phi_pos[1] <- 1
+
+for (i in 1:9999) {
+  theta_pos[i+1] <- rgamma(1, shape = sum(y[1:m_pos[i]]) + alpha, rate = m_pos[i] + beta )
+  phi_pos[i+1] <- rgamma(1, shape = sum( y[ (m_pos[i]+1) : n] ) + gam, rate = n - m_pos[i]+ delta)
+  pm_raw <- rep(NA, n)
+  for (j in 1:(n-1)) {
+    pm_raw[j] <- theta_pos[i+1]^(sum(y[1:j])) * exp(-j*theta_pos[i+1])* phi_pos[i+1]^(sum(y[(j+1):n])) * exp(j*phi_pos[i+1])
+  }
+  pm_raw[n] <- theta_pos[i+1]^(sum(y)) * exp(-n*theta_pos[i+1]) * exp(n*phi_pos[i+1])
+  pm_norm <- pm_raw/sum(pm_raw)
+  m_pos[i+1] <- which.max(rmultinom(n = 1, size = 1, prob = pm_norm))
+
+}
+
+
+```
+
+
+```{r}
+m_final <- m_pos[thin]
+theta_final <- theta_pos[thin]
+phi_final <- phi_pos[thin]
+par(mfrow = c(1,3))
+
+plot(m_final, type = 'l')
+plot(theta_final, type = 'l')
+plot(phi_final, type = 'l')
+acf(m_final)
+acf(theta_final)
+acf(phi_final)
+
+CI_4b <- matrix(c(
+  mean(m_final), mean(theta_final), mean(phi_final),
+  quantile(m_final, 0.025),quantile(theta_final, 0.025),quantile(phi_final, 0.025),
+  quantile(m_final, 0.975),quantile(theta_final, 0.975),quantile(phi_final, 0.975),
+  mcmcse::ess(m_final), mcmcse::ess(theta_final),mcmcse::ess(phi_final)
+), nrow = 4, ncol = 3, byrow = TRUE)
+colnames(CI_4b) <- c("M", "Theta", "Phi")
+rownames(CI_4b) <- c("Mean", "2.5% Quantile", "97.5% Quantile", "Effective Sample Size")
+knitr::kable(CI_4b)
+```
+
+# Question 4: (alpha = gamma = 100, beta = delta = 10)
+
+```{r}
+y <- 
+c(4,5,4,1,0,4,3,4,0,6,3,3,4,0,2,6,3,3,5,4,5,3,1,4,4,1,5,5,3,4,2,5,2,2,3,4,
+2,1,3,2,2,1,1,1,1,3,0,0,1,0,1,1,0,0,3,1,0,3,2,2,0,1,1,1,0,1,0,1,0,0,0,2,1,
+0,0,0,1,1,0,2,3,3,1,1,2,1,1,1,1,2,4,2,0,0,0,1,4,0,0,0,1,0,0,0,0,0,1,0,0,1, 
+0,1)
+n <- length(y)
+
+con_m <- function(m, theta, phi){
+  pm_raw <- rep(NA, n)
+  for (j in 1:n) {
+    pm_raw[j] <- theta^(sum(y[1:j])) * exp(-j*theta)* phi^(sum(y[j+1:n])) * exp(j*phi)
+  }
+  pm_norm <- pm_raw/sum(pm_raw)
+  return(pm_norm)
+}
+m_pos <- rep(NA, 10000)
+theta_pos <- rep(NA, 10000)
+phi_pos <- rep(NA, 10000)
+
+alpha <- 10
+gam <- 10
+beta <- 10 
+delta <- 10
+
+m_pos[1] <- 10
+theta_pos[1] <- 1
+phi_pos[1] <- 1
+
+for (i in 1:9999) {
+  theta_pos[i+1] <- rgamma(1, shape = sum(y[1:m_pos[i]]) + alpha, rate = m_pos[i] + beta )
+  phi_pos[i+1] <- rgamma(1, shape = sum( y[ (m_pos[i]+1) : n] ) + gam, rate = n - m_pos[i]+ delta)
+  pm_raw <- rep(NA, n)
+  for (j in 1:(n-1)) {
+    pm_raw[j] <- theta_pos[i+1]^(sum(y[1:j])) * exp(-j*theta_pos[i+1])* phi_pos[i+1]^(sum(y[(j+1):n])) * exp(j*phi_pos[i+1])
+  }
+  pm_raw[n] <- theta_pos[i+1]^(sum(y)) * exp(-n*theta_pos[i+1]) * exp(n*phi_pos[i+1])
+  pm_norm <- pm_raw/sum(pm_raw)
+  m_pos[i+1] <- which.max(rmultinom(n = 1, size = 1, prob = pm_norm))
+
+}
+
+
+```
+
+
+```{r}
+m_final <- m_pos[thin]
+theta_final <- theta_pos[thin]
+phi_final <- phi_pos[thin]
+par(mfrow = c(1,3))
+
+plot(m_final, type = 'l')
+plot(theta_final, type = 'l')
+plot(phi_final, type = 'l')
+acf(m_final)
+acf(theta_final)
+acf(phi_final)
+
+CI_4b <- matrix(c(
+  mean(m_final), mean(theta_final), mean(phi_final),
+  quantile(m_final, 0.025),quantile(theta_final, 0.025),quantile(phi_final, 0.025),
+  quantile(m_final, 0.975),quantile(theta_final, 0.975),quantile(phi_final, 0.975),
+  mcmcse::ess(m_final), mcmcse::ess(theta_final),mcmcse::ess(phi_final)
+), nrow = 4, ncol = 3, byrow = TRUE)
+colnames(CI_4b) <- c("M", "Theta", "Phi")
+rownames(CI_4b) <- c("Mean", "2.5% Quantile", "97.5% Quantile", "Effective Sample Size")
+knitr::kable(CI_4b)
+```
+
+
+
+
+
+# Question 5
+```{r warning=FALSE}
+dat_q5 <- read.csv("D:/77/UCSC/study/206b/hw/q5.csv", header = T)
+dat <- reshape(dat_q5, v.names=c("weight","time"), timevar="visit",idvar="patient", direction="wide")
+dat <- as.matrix(dat)
+alpha = beta = tau_alpha = tau_beta = sigma <- rep(NA, 10000)
+alpha_all = beta_all <- matrix(NA, nrow = max(dat_q5$patient), ncol = 10000)
+
+#Initialize
+
+alpha[1] <-  160
+
+beta[1] <- 1
+
+tau_alpha[1] <- 1
+
+tau_beta[1] <- 1
+
+sigma[1] <- 1
+
+alpha_all[,1] <- 1
+
+beta_all[,1] <- 1
+
+
+#hyper:
+
+a_sigma <- 1
+
+b_sigma <- 0.1
+
+a_alpha <- 1
+
+b_alpha <- 0.1
+
+a_beta <- 1
+
+b_beta <- 0.1
+
+P_alpha <- 100
+
+P_beta <- 1
+
+attach(dat_q5)
+
+I <- max(dat_q5$patient)
+n_i <- as.vector(table(dat_q5$patient))
+N <- nrow(dat_q5)
+```
+
+
+```{r}
+set.seed(999)
+for (m in 1:9999) {
+  
+# Generate new Alpha_i Vector  
+  yij <- dat[,seq(from = 3, to = 15, by = 2)]
+  tij <- dat[,seq(from = 4, to = 16, by = 2)]
+  mean_vec_alpha <- ( rowSums ( (yij - tij * beta_all[,m]) / sigma[m], na.rm = TRUE ) + alpha[m]/tau_alpha[m] ) / ( n_i/sigma[m] + 1/tau_alpha[m]   )
+  alpha_all[,m+1] <- mvtnorm::rmvnorm(1, mean = mean_vec_alpha, sigma = diag(  1/( n_i/sigma[m] + 1/tau_alpha[m] ), length(mean_vec_alpha) ))
+  
+# Generate new Beta_i Vector
+  mean_vec_beta <- ( rowSums( (yij - alpha_all[,m+1])*tij, na.rm = TRUE) / sigma[m] + beta[m]/tau_beta[m] ) /
+    ( rowSums(tij^2, na.rm = TRUE)/sigma[m] + 1/tau_beta[m] )
+  beta_all[,m+1] <- mvtnorm::rmvnorm(1, mean = mean_vec_beta, sigma = diag(  1/( rowSums(tij^2, na.rm = TRUE)/sigma[m] +1/tau_beta[m]) , length(mean_vec_beta)))
+  
+# Generate alpha and beta
+  mu_alpha <- sum(alpha_all[,m+1])/ tau_alpha[m] / (I/tau_alpha[m] + 1/P_alpha)
+  sig_alpha <- 1/( I/tau_alpha[m] + 1/P_alpha )
+  alpha[m+1] <- rnorm(1, mean = mu_alpha, sd = sqrt(sig_alpha) )
+  
+  
+  mu_beta <- sum(beta_all[,m+1]/ tau_beta[m]) / (I/tau_beta[m] + 1/P_beta)
+  sig_beta <- 1 / (I/tau_beta[m] + 1/P_beta)
+  beta[m+1] <- rnorm(1, mean = mu_beta, sd = sqrt(sig_beta))
+  
+# Generate Sigma
+  sse <- sum( ( yij - alpha_all[,m+1] - tij * beta_all[,m+1] )^2, na.rm = TRUE )
+  sigma[m+1] <- 1/ rgamma(1, shape = N/2 + a_sigma, rate = sse/2 + b_sigma)
+  
+  
+# Generate tau_alpha and tau_beta
+  
+  tau_alpha[m+1] <- 1/ rgamma(1, shape = I/2 + a_alpha, rate = sum( (alpha_all[,m+1]- alpha[m+1])^2 )/2 + b_alpha   )
+  tau_beta[m+1] <- 1/ rgamma(1, shape = I/2 + a_beta, rate = sum(  (beta_all[,m+1] - beta[m+1])^2 )/2 + b_beta   )
+  
+}
+```
+
+
+```{r}
+alpha_i_estimate <- rowMeans(alpha_all[,thin])
+alpha_lower <- apply(alpha_all[,thin], 1, quantile, 0.025)
+alpha_upper <- apply(alpha_all[,thin], 1, quantile, 0.975)
+
+
+beta_i_estimate  <- rowMeans(beta_all[,thin])
+beta_lower <- apply(beta_all[,thin], 1, quantile, 0.025)
+beta_upper <- apply(beta_all[,thin], 1, quantile, 0.975)
+
+al_be_table <- cbind(c(1:I),alpha_i_estimate, alpha_lower, alpha_upper, beta_i_estimate, beta_lower, beta_upper)
+colnames(al_be_table) <- c("Patient", "Alpha_i(mean)", "Lower 95% CI of Alpha_i","Upper 95% CI of Alpha_i","Beta_i(mean)" ,"Lower 95% CI of Beta_i", "Upper 95% CI of Beta_i")
+tab1 <- knitr::kable(al_be_table)
+tab1
+```
+
+
+```{r}
+alpha_est <- mean(alpha[thin])
+beta_est <- mean(beta[thin])
+sigma_est <- mean(sigma[thin])
+tau_alpha_est <- mean(tau_alpha[thin])
+tau_beta_est <- mean(tau_beta[thin])
+ALPHA_lower <- quantile(alpha[thin], 0.025)
+ALPHA_upper <- quantile(alpha[thin], 0.975)
+BETA_lower <- quantile(beta[thin], 0.025)
+BETA_upper <- quantile(beta[thin], 0.975)
+sigma_lower <- quantile(sigma[thin], 0.025)
+sigma_upper <- quantile(sigma[thin], 0.975)
+tau_alpha_lower <- quantile(tau_alpha[thin], 0.025)
+tau_alpha_upper <- quantile(tau_alpha[thin], 0.975)
+tau_beta_lower <- quantile(tau_beta[thin], 0.025)
+tau_beta_upper <- quantile(tau_beta[thin], 0.975)
+
+A <- c(alpha_est, ALPHA_lower, ALPHA_upper)
+B <- c(beta_est, BETA_lower, BETA_upper)
+C <- c(sigma_est, sigma_lower, sigma_upper)
+TA <- c(tau_alpha_est, tau_alpha_lower, tau_alpha_upper)
+TB <- c(tau_beta_est, tau_beta_lower, tau_beta_upper)
+
+tab2 <- cbind(A, B, C, TA, TB)
+colnames(tab2) <- c(
+  "Alpha", "Beta", "Sigma","Tau_alpha", "Tau_beta" 
+)
+rownames(tab2) <- c("Point Estimate", "95% CI Lower", "95% CI Upper")
+knitr::kable(tab2)
+```
+# Check for Convergence
+
+```{r}
+plot(alpha_all[1, thin], type = 'l')
+plot(beta_all[1, thin], type = 'l')
+plot(sigma[thin], type = 'l')
+plot(tau_alpha[thin], type = 'l')
+plot(tau_beta[thin], type = 'l')
+plot(alpha[thin], type = 'l')
+plot(beta[thin], type = 'l')
+```
+
+
+
+
+

@@ -1,0 +1,449 @@
+---
+geometry: "margin=0.8in"
+output: 
+  pdf_document:
+    latex_engine: xelatex   
+documentclass: asaproc
+header-includes:
+    - \usepackage{setspace}
+    - \singlespacing
+    - \usepackage{bm}
+    - \usepackage{graphics}
+---
+
+```{r global_options, include=FALSE}
+    rm(list = ls())
+    knitr::opts_chunk$set(fig.width=6, 
+    fig.height=5, fig.path='./Figs/',echo=FALSE,  warning=FALSE, message=FALSE)
+    library(knitr)
+
+```
+\title{Bayesian Vaccine Coverage Rate Research in Nigeria}
+
+\author{Qi Wang$^1$\\
+Department of Statistics, University of California, Santa Cruz$^1$\\
+}
+ 
+\maketitle
+
+
+\section*{Abstract}
+
+
+In this report, we are going to explore the vaccination coverage for MCV1 among children in Nigeria in 2018 in Bayesian approach. Non-hierarchical and hierarchical models are both included. 
+
+
+\begin{keywords}
+Bayesian Hierarchical Model, Beta-Binomial Model, Model Selection
+\end{keywords}
+
+
+\section*{1. Data Description}
+
+The data in this report describes the vaccination coverage for the first dose of measles-containing-vaccine(MCV1) among children aged 12-24 months in Nigeria in 2018. It is clustered in each row, which describes one census enumeration area like a collection of households. And in each cluster, the number of children vaccinated is recorded as $y$, and the number of eligible children is recorded as $n$. Also, each cluster belongs to one of the 37 level 1 administrative areas. Take data from Abia as an example, here is some rows of data in table 1.
+
+
+```{r}
+dat <- read.csv(here::here("measles.csv"), header = TRUE)
+state_list <- names(table(dat$region))
+dat$region[which(dat$region=="Federal Capital Territory")] <- "Federal"
+state_list[15] <- "Federal"
+```
+```{r}
+ex <- dat[which(dat$region == "Abia"),]
+kable(ex[1:5,], align = "c", caption = "Example of Data from Abia", format = "latex")
+```
+
+\section*{2. Descriptive Statistics And Exploratory Data Analysis}
+
+\subsection*{2.1 Overview of Data}
+
+Since we are interested in the overall vaccine coverage rate for all the regions, here is an overall plot of all the regions' coverage rate in figure \ref{fig:overalltrend}. The difference vaccine coverage rate is obvious among different regions of the country. Some regions like Lagos, Anambra have a coverage rate more than 0.8, on the contrary, for other countries like Sokoto and Zamfara, the coverage rate is only around 0.2. Furthermore, as shown in figure \ref{fig:overallboxplot}, we can also tell difference between regions through the region wise box plot. However, we need more concrete statistical results, which will be discussed in the latter part of this report.
+
+```{r overalltrend, fig.align='center', fig.cap="Overall Coverage Rate for Each Region"}
+attach(dat)
+p <- y/n
+dat_new <- cbind(dat, p)
+M <- aggregate(dat_new$p, list(dat_new$region), FUN=mean)
+plot(M$x, type = 'b', pch = 19, main = "Regional Average Coverate Rate", ylab = "Coverage Rate", xaxt = 'n', xlab = "State")
+text(state_list, x = 1:37, y = M$x-0.02+c(rep(0,18),0.05,rep(0,18)), cex = 0.6)
+```
+```{r overallboxplot, fig.align='center', fig.cap="Boxplot of Overall Coverage"}
+boxplot(dat_new$p~dat_new$region, col = 'lightpink', xaxt = 'n', xlab = "Region", ylab = "Coverage Rate", main = "Coverage Rate Boxplot")
+```
+
+\subsection*{2.2 Logistic Regression}
+
+Since we are comparing the coverage probability of each region, I will use a basic logistic regression to check the coverage rate difference with Abia being the reference group. As shown in table 2, these are regions that have significant coverage rate difference from Abia at 0.05 significance level. Therefore, we need to consider the between group difference and within group difference at the same time. Furthermore, a t test to compare the probability is also conducted in table 3, which includes only a subset of t-test due to the limitation of the space, and 1 means there are significant difference, 0 means no significant difference at significance level 0.05. From the boxplot in the last section and the test or regression result in this subsection, we can know that there exists between group variation and within group variation. 
+
+
+```{r}
+M1 <- glm(cbind(y,n) ~ region, data = dat_new, family = binomial(link = 'logit'))
+S <- summary(M1)$coefficient
+rownames(S) <- state_list
+rownames(S)[1] <- "Intercept"
+kable(round(S[which(S[,4]<= 0.05),],4), caption = "Logistic Regression Coefficient", align = 'c', format = 'latex')
+```
+```{r ttest}
+pv <- matrix(NA, nrow = 37, ncol = 37)
+for (i in 1:37) {
+      S1 <- p[which(region==state_list[i])]
+  for (j in 1:37) {
+
+    S2 <- p[which(region==state_list[j])]
+    pv[i,j] <- t.test(S1, S2)$p.value
+  }
+  
+}
+rownames(pv) <- colnames(pv) <- state_list
+pv[which(pv<=0.05)] <- 1
+pv[which(pv>0.05 & pv < 1)] <- 0
+kable(pv[31:35,31:35], caption = "t.test Result", align = 'c', format = "latex")
+```
+
+
+\section*{3. Bayesian Beta-Binomial Conjugate Model}
+
+\section*{3.1 Model Setting and Assumption}
+
+Since we have we have proved the existence of the within group variation and between group variation, we can propose a beta-binomial model for this setting. We are assuming that:
+$$Y_i \ | \ N_i \sim \ Binomial(N_i \ , p_{s[i]})$$
+where $s[i] \in \{1,2,3...,37\}$ is the indicator of the area that the cluster $i$ belongs to. Furthermore, for $p =(p_1, p_2,...,p_J)$, we assume that:
+
+$$p_j \sim_{iid} Beta(\alpha,\beta)$$
+\section*{3.2 Getting Posterior Samples}
+
+According to Bayes Theorem, we can derive the posterior $\pi(p_i|Y_{i.})$ in which, $Y_{i.}$ is a reshape of data that for all the data that belongs to region $i$, and $i \in \{1,2,3...,37\}$, that is:
+
+$$\pi(p_i|Y_{i.}) \propto \pi(p_i) \times f(Y_{i.}|p_i) $$
+Furthermore, 
+$$f(Y_{i.}|p_i) \propto \prod_{j = 1}^{n_i} p_i^{Y_{ij}} (1-p_i)^{N_{ij}-Y_{ij}} $$
+where the $n_i$ is the number of clusters in region $i$. Therefore,
+
+$$\pi(p_i|Y_{i.}) \propto p_i^{\alpha-1}(1-p_i)^{\beta-1} \times \prod_{j = 1}^{n_i}   p_i^{Y_{ij}} (1-p_i)^{N_{ij}-Y_{ij}}
+$$
+$$=p_i^{\alpha+\sum_{j=1}^{n_i}Y_{ij}-1}(1-p_i)^{\beta+\sum_{j=1}^{n_i}(N_{ij}-Y_{ij})-1} $$
+It is still a Beta distribution kernel, therefore, 
+$$p_i|Y_{i.} \sim Beta(\alpha+\sum_{j=1}^{n_i}Y_{ij} \ , \  \beta+\sum_{j=1}^{n_i}(N_{ij}-Y_{ij}))$$
+So we can directly get the posterior distribution by applying R functions. In this model, I set a non-informative prior for $p_i$, which means I set hyper parameter $\alpha$ and $\beta$ both to be 1. After sampling from the posterior distribution, the mean of the samples are shown in figure
+
+```{r posave, fig.align='center', fig.cap="Posterior Mean of Each Region" }
+J <- length(state_list)
+i <-1
+alpha <- 1
+beta <- 1
+pool_pos <- matrix(NA, nrow = 37, ncol = 10000)
+for (i in 1:J) {
+  yij <- y[which(region == state_list[i])]
+  nij <- n[which(region == state_list[i])]
+  pos_alpha <- alpha + sum(yij) 
+  pos_beta <- beta + sum(nij) - sum(yij)
+  pool_pos[i,] <- rbeta(10000, shape1 = pos_alpha, shape2 = pos_beta)
+}
+
+plot(rowMeans(pool_pos), type = 'b', pch = 19, main = "Posterior Average Coverate Rate", ylab = "Coverage Rate", xaxt = 'n', xlab = "State")
+text(state_list, x = 1:37, y = rowMeans(pool_pos)-0.02+c(rep(0,18),0.05,rep(0,18)), cex = 0.6)
+```
+There still seems to be difference in among the groups, it may be because that I set one non-informative prior so the posterior will be mostly affected by the likelihood, which seems to be similar to the picture in the descriptive statistics.
+
+\section*{3.3 Expected Ranking and Distribution}
+
+To begin with, with the posterior samples, the regions raking expectation is plotted in figure \ref{fig:rank}.Therefore, we get the 5 lowest vaccine coverage rate region:
+
+```{r rank, fig.align='center', fig.cap="Expectation Rank of Each Region"}
+i <- 1
+ranking <- matrix(NA, nrow = J, ncol = 10000)
+for (i in 1:10000) {
+  ranking[,i] <- rank(pool_pos[,i])
+}
+rankmean <- rowMeans(ranking)
+
+plot(rankmean, type = 'b', pch = 19, main = "Expectation Rank", xaxt = 'n', xlab = "Region", ylab = "Expected Ranking")
+text(state_list, x = 1:37, y = rankmean+1, cex = 0.6)
+```
+
+```{r}
+matrix(state_list[order(rankmean)[1:5]], nrow = 5)
+```
+And 5 highest vaccine coverage rate region:
+
+
+```{r}
+matrix(state_list[order(rankmean, decreasing = TRUE)[1:5]], nrow = 5)
+```
+
+For the lowest region, the expected ranking distribution for each of them are as presented in figure \ref{fig:rankdistl}. Smaller rank means the lower coverage rate.
+
+```{r rankdistl, fig.align='center', fig.cap="Rank Distribution of Lowest Rate Regions"}
+low <- order(rankmean)[1:5]
+high <- order(rankmean, decreasing = TRUE)[1:5]
+i <- 1
+par(mfrow = c(1,5))
+for (i in 1:5) {
+  plot(table(ranking[low[i],])/10000, xlab = "Rank", ylab = "Probability", main = state_list[low[i]] )
+}
+
+```
+
+For the highest region, the expected ranking distribution for each of them are as presented in figure \ref{fig:rankdisth}. Similarly, higher rank means the higher coverage rate.
+
+```{r rankdisth, fig.align='center', fig.cap="Rank Distribution of Lowest Rate Regions"}
+low <- order(rankmean)[1:5]
+high <- order(rankmean, decreasing = TRUE)[1:5]
+i <- 1
+par(mfrow = c(1,5))
+for (i in 1:5) {
+  plot(table(ranking[high[i],])/10000, xlab = "Rank", ylab = "Probability", main = state_list[high[i]])
+}
+
+```
+
+\section*{4. Bayesian Hierachical Model}
+\subsection*{4.1 Model Setting}
+Now if we consider another model to represent the data as follows:
+
+$$Y_{ij}|N_{ij} \sim Binomial(N_{ij},p_i) $$
+$$p_i|\mu_i,d \sim_{ind}Beta(\mu_i,d), \ \ i= 1,2,...,J$$
+
+$$logit(\mu_s) \sim N(0, \sigma_\mu^2)$$
+$$logit(d) \sim N(0, \sigma_d^2)$$
+After the reparameterization:
+
+$$E(p)=\frac{\alpha}{\alpha+\beta}=\mu$$
+$$Var(p) = \frac{\alpha\beta}{(\alpha+\beta)^2(\alpha+\beta+1)}=\mu(1-\mu)d$$
+
+By the law of total expectation:
+
+$$E(Y|\mu,d)=E(E(Y|p,\mu,d))=nE(p)=n\mu$$
+Also, by the law of total variance:
+$$Var(Y|\mu,d)=E(Var(Y|p,\mu,d))+Var(E(Y|p,\mu,d))=$$
+$$n\mu-n(\mu^2+\mu(1-\mu) d)+n^2\mu(1-\mu)d$$
+
+Therefore, in this way, we reduce the dependence of the mean and variance parameters.
+
+
+First of all, we need to get the joint posterior distribution of all parameters, and here I will still use $\alpha_i$ and $\beta_i$ then reparameterize later. 
+
+Because we have the equation for $\mu_i$ and $d$ by equations:
+$$ \mu_i =\frac{\alpha_i}{\alpha_i + \beta}, \ d =\frac{1}{\alpha_i + \beta+1}  $$
+We have: 
+$$ \alpha_i =\mu_i(\frac{1-d}{d}), \beta = (1-\mu_i)(\frac{1-d}{d}) $$
+Then put the reparameterized $\alpha_i$ and $\beta$ to replace the $\mu_i$ and $\beta$ in the distribution above will give us the posterior. 
+The joint posterior will be:
+$$ \pi(p,\mu,d|Y_{ij},N{ij}) \propto \prod_{i= 1}^J\prod_{j = 1}^{n_i}p_i^ {Y_{ij}}(1-p_i)^{(N_{ij}-Y{ij})}$$
+$$\times \prod_{i = 1}^J\frac{1}{\beta(\alpha_i,\beta)}p_i^{\alpha_i-1}(1- p_i)^{\beta-1}$$
+$$\times  \pi(\mu)\times \pi(d)$$
+Then I will get the full conditional distribution of each parameter:
+
+$$ \pi( p_i|others)  \propto p_i^{\sum_{j=1}^{n_i}Y_{ij}+\alpha_i-1}(1-p_i)^{\sum_{j=1}^{n_i}(N_{ij}-Y_{ij})+\beta-1} $$
+$$\sim Beta(\sum_{j=1}^{n_i}Y_{ij}+\alpha_i, \sum_{j=1}^{n_i}(N_{ij}-Y_{ij})+\beta)$$
+$$\pi(logit(\mu_i)|others) \propto exp(-\frac{logit(\mu_i)^2}{2\sigma_\mu^2})\times \frac{1}{\beta(\alpha_i,\beta)}p_i^{\alpha_i-1}(1- p_i)^{\beta-1}$$
+
+
+in which:
+ $$ \alpha_i = logit^{-1}(logit (\mu_i))(\frac{1-logit^{-1}(logit (d))}{logit^{-1}(logit (d))}),$$
+ $$\beta = (1-logit^{-1}(logit (\mu_i)))(\frac{1-logit^{-1}(logit (d))}{logit^{-1}(logit (d))}) $$
+$$\pi(logit(d)|others) \propto exp(-\frac{logit(d)^2}{2\sigma_d^2})\times $$
+$$\prod_{i = 1}^J\frac{1}{\beta(\alpha_i,\beta)} p_i^{\alpha_i-1}(1- p_i)^{\beta-1}$$
+
+
+
+```{r}
+#Initialize
+J <- length(table(region))
+iter <- 1e4
+sig_mu <- 1
+sig_d <- 1
+
+mul <- matrix(NA, nrow = J, ncol = iter)
+pi <- matrix(NA, nrow = J, ncol = iter)
+dl <- rep(NA, iter)
+mul[,1] <- -1
+dl[1] <- -2
+pi[,1] <- 1
+step_1 <- 0.5
+step_2 <- 0.5
+```
+```{r}
+log_inv <- function(x){
+  out <- exp(x) / (1+exp(x))
+  return(out)
+}
+alpha_f <- function(mul,dl){
+  out <- log_inv(mul)*(1-log_inv(dl))/log_inv(dl)
+  return(out)
+}
+beta_f <- function(mul, dl){
+  out <- (1-log_inv(mul))*(1-log_inv(dl))/log_inv(dl)
+  return(out)
+}
+
+mul_pos <- function(mul,dl,pi){
+  out <- exp(- mul^2/(2*sig_mu^2) - log(beta(a = alpha_f(mul, dl), b = beta_f(mul,dl))) +  log(pi) * ( alpha_f(mul, dl) -1 )  + log(1-pi) * (beta_f(mul,dl)-1) )
+  return(out)
+}
+dl_pos <- function(mul,dl,pi){
+  out <- exp(-dl^2/(2*sig_d^2)  + sum(  -log(beta(a = alpha_f(mul, dl), b = beta_f(mul,dl))) +log(pi) *(alpha_f(mul,dl) -1 ) +  log(1-pi) * (beta_f(mul,dl)-1)  )  ) 
+  return(out)
+}
+```
+
+
+```{r}
+#loop
+set.seed(3)
+i <-1
+for (i in 1:(iter-1)) {
+# Generate pi
+  j <- 1
+  for (j in 1:J) {
+    a <- alpha_f(mul = mul[j,i], dl = dl[i] )
+    b <- beta_f(mul = mul[j,i], dl = dl[i] )
+    yij <- y[which(region==state_list[j])]
+    nij <- n[which(region==state_list[j])]
+    s1 <-  a + sum(yij) 
+    s2 <- b + sum(nij-yij) 
+    pi[j,i+1] <- rbeta(1, shape1 = s1, shape2 = s2)
+    # Generate mu, using Metropolis Hastings
+    mul_new <- rnorm(1, mean = mul[j,i],sd = step_1)
+    p1 <- log(mul_pos(mul = mul_new ,dl = dl[i], pi = pi[j,i+1])) 
+    p2 <- log(mul_pos(mul = mul[j,i], dl = dl[i], pi = pi[j,i+1]))
+    p <- exp(p1-p2)
+    l <- runif(1)
+    if(l <= p ){
+      mul[j,i+1] <- mul_new
+    }else{mul[j,i+1] <- mul[j,i]}
+  }
+
+# Generate d, using Metropolis Hastings
+  dl_new <- rnorm(1, mean = dl[i],sd = step_2)
+  p1 <- log(dl_pos(mul = mul[,i+1], dl = dl_new, pi = pi[,i+1]))
+  p2 <- log(dl_pos(mul = mul[,i+1], dl = dl[i], pi = pi[,i+1]))
+  p <- exp(p1-p2)
+  l <- runif(1)
+  if(l<=p){
+    dl[i+1] <- dl_new
+  }else{dl[i+1] <- dl[i]}
+}
+
+```
+And here is the posterior histogram of $d$ in figure \ref{fig:dpos}. Also, here is a posterior for $\mu_i$ of a subset of the regions  in figure \ref{fig:mupos}.
+```{r dpos, fig.align='center', fig.cap="Posterior of d"}
+thin <- seq(from = 2000, to = 8000, by =8)
+hist(dl_final <- log_inv(dl[thin]), main = "Posterior of d", xlab = 'd', col = "lightblue")
+```
+```{r mupos, fig.align='center', fig.cap="Hierarchical Posterior of p"}
+par(mfrow = c(3,3))
+i <- 1
+p_final <- pi[,thin]
+for (i in 1:9) {
+  hist(p_final[i,], xlab = "p", main = state_list[i], col = 'lightpink')
+}
+```
+
+\subsection*{4.2 Posterior Sample}
+
+After using Metropolis Hasting within Gibbs sampler, we have the posterior distribution for each $\mu_i$ compared with the non-hierarchical model before in figure \ref{fig:comparison}. However, actually, there is little difference between the first model and this one. But if we see the hyperparameters, there is a big difference between the distribution of $\mu_i$ and the distribution of $p_i$, which will be discussed later in the next section
+
+
+```{r comparison, fig.align='center', fig.cap="Comparisons "}
+thin <- seq(from = 2000, to = 8000, by = 8)
+p_final <- pi[,thin]
+dl_final <- log_inv(dl[thin])
+
+i <- 2
+
+par(mfrow = c(1,3))
+
+plot(density(p_final[1,]), type = 'l', lwd = 2, main = "Hierarchical Posterior", xlab = "p", ylab = "Density", xlim = c(0,1), ylim = c(0,20), col = "lightblue")
+for (i in 2:J) {
+  lines(density(p_final[i,]), type = 'l', lwd = 2, col = "lightblue")
+}
+i <-2
+
+
+plot(density(log_inv(mul[1,thin])), type = 'l', lwd = 2, main = "Hierarchical Posterior", xlab = "mu", ylab = "Density", xlim = c(0,1), ylim = c(0,6), col = "lightblue")
+for (i in 2:J) {
+  lines(density(log_inv(mul[i,thin])), type = 'l', lwd = 2,  col = "lightblue")
+}
+
+
+
+plot(density(pool_pos[1,]), type = 'l', lwd = 2, main = "Non-hierarchical Posterior", xlab = "p", ylab = "Density", xlim = c(0,1), ylim = c(0,20), col = "lightblue")
+for (i in 2:J) {
+  lines(density(pool_pos[i,]), type = 'l', lwd = 2 , col = "lightblue")
+}
+
+
+```
+
+\subsection*{4.3 Posterior Ranking Inference}
+
+Here is the expectation of the rank for all the regions in our hierarchical model in figure \ref{fig:rank2}. So we can get the 5 lowest coverage rate regions as follows:
+
+
+
+```{r rank2, fig.align='center', fig.cap="Expectation Rank of Each Region"}
+i <- 1
+ranking <- matrix(NA, nrow = J, ncol = length(thin))
+for (i in 1:length(thin)) {
+  ranking[,i] <- rank(p_final[,i])
+}
+rankmean <- rowMeans(ranking)
+
+plot(rankmean, type = 'b', pch = 19, main = "Expectation Rank", xaxt = 'n', xlab = "Region", ylab = "Expected Ranking")
+text(state_list, x = 1:37, y = rankmean+1, cex = 0.6)
+```
+```{r}
+matrix(state_list[order(rankmean)[1:5]], nrow = 5 )
+```
+And 5 highest vaccine coverage rate region:
+
+
+```{r}
+matrix(state_list[order(rankmean, decreasing = TRUE)[1:5]], nrow = 5)
+```
+
+For the lowest region, the expected ranking distribution for each of them are as presented in figure \ref{fig:rankdistl2}. Smaller rank means the lower coverage rate.
+
+```{r rankdistl2, fig.align='center', fig.cap="Rank Distribution of Lowest Rate Regions"}
+low <- order(rankmean)[1:5]
+high <- order(rankmean, decreasing = TRUE)[1:5]
+i <- 1
+par(mfrow = c(1,5))
+for (i in 1:5) {
+  plot(table(ranking[low[i],])/10000, xlab = "Rank", ylab = "Probability", main = state_list[low[i]] )
+}
+
+```
+For the highest region, the expected ranking distribution for each of them are as presented in figure \ref{fig:rankdisth2}. Similarly, higher rank means the higher coverage rate.
+
+```{r rankdisth2, fig.align='center', fig.cap="Rank Distribution of Lowest Rate Regions"}
+low <- order(rankmean)[1:5]
+high <- order(rankmean, decreasing = TRUE)[1:5]
+i <- 1
+par(mfrow = c(1,5))
+for (i in 1:5) {
+  plot(table(ranking[high[i],])/10000, xlab = "Rank", ylab = "Probability", main = state_list[high[i]])
+}
+
+```
+
+The ranking expectation plot is still almost telling similar information as the non-hierachical one. Detailed Discussion will be included later in the next section.
+
+\section*{5. Discussion}
+
+As the results in the two models shown above, the non-hierarchical model mostly tells us about the difference among all the regions, which ignores the inner relationship. However, the hierarchical model will put an extra layer of prior distribution on the hyperparameters in the first model. The first model is conjugate and easy to sample since it is a beta-binomial model, that is really a charming point to choose this model. However, considering all the observations come from a same country, we cannot ignore some inner relationship between the regions. For example, if we investigate other countries the regions in U.S will never have a same hyperparameter as the regions in other countries. Therefore, if we have more information about the country, or we have nice information about the hyperparameters in the hierarchical model, then we prefer the hierarchical one. However, the hierarchical model needs the Metropolis Hasting within Gibbs sampler to realize, which makes it sometimes hard to calculate.
+
+From the posterior coverage rate distributions and posterior ranking distributions, we can see that the result of the posterior $p_i$ is almost the same for them. But the first model has an assumption about the $p_i$, which is $p_i$'s are i.i.d. However, with the hierarchical model of the distribution of $\mu_i$, we can see that actually they are not i.i.d. under the hierarchical model. So the second model is more flexible and let us have the approach to find the distribution of the hyperparameters in the first model, which gave us more information about the country as a whole.
+
+Also, I am confused why did we do the reparameterization, maybe my result is wrong, but according to the result, it actually didn't separate the variance and mean because if they share the same d, then the variance of $p_i$ will still be $\mu_i(1-\mu_i)d$, which still depends on their mean. But the good news is that we made the variance of the $\mu_i$ not that dependent on the mean. One possible reason could be that my hyperparameter was $\sigma_u^2=\sigma_d^2=1$, this is relatively a strong prior, but whether the prior is correct is not known.
+
+\section*{6. Potentially Better Modeling Approaches}
+
+To tell the truth, I spent lots of time doing the reparameterization part and derive the joint posterior distribution. So I am thinking of an easier way to model this case to avoid the logit function. Since:
+
+$$ \mu = \frac{\alpha}{\alpha + \beta} \in [0,1], \ d =\frac{1}{\alpha+\beta+1} \in [0,1]$$
+If we put a uniform prior on both $\mu$ and $d$, then the calculation could be easier, and more reasonable. Because if we set $logit(\mu_i)$ to be a centered normal distribution, we have given the information that $\mu_i$ is concentrated around 0.5, which may not be a correct information. But if we set them following uniform distribution, there are several advantages. The first one is the calculation, the joint posterior will be easy to get. Also, even though we have to transform them again in to logit form when doing random walk MH, the Jacobian is also not hard to calculate. But the disadvantage is that although it's uniform distribution, I guess there could be a type of transformation of this pair of variables that is not uniform. But when calculating the joint posterior, it is much easier.
+
+

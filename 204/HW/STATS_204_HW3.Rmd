@@ -1,0 +1,561 @@
+---
+title: "STATS_204_HW3"
+author: "Qi Wang"
+output:
+  pdf_document: 
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+\noindent 
+Question 1: (4.3)
+
+(a)
+```{r}
+M_cars <- lm(dist ~ speed, data = cars)
+plot(cars$speed, M_cars$residual, pch = 19, xlab = "Speed of Cars",
+     ylab = "Residuals", main = "Residual Plot of Model")
+```
+(b)
+```{r}
+M_cars <- lm(dist ~ speed, data = cars)
+plot(cars$speed, M_cars$residual, pch = 19, xlab = "Speed of Cars",
+     ylab = "Residuals", main = "Residual Plot of Model")
+abline(h = 0, lwd = 3, col = 'blue')
+```
+(c)
+```{r}
+
+M_cars <- lm(dist ~ speed, data = cars)
+plot(cars$speed, M_cars$residual, pch = 19, xlab = "Speed of Cars",
+     ylab = "Residuals", main = "Residual Plot of Model")
+abline(h = 0, lwd = 3, col = 'blue')
+#locator(n = 2)
+text(x = c(14.11889, 23.83116)-1, y = c(42.63116, 43.65511), c("POS", "POS"), col = 'blue')
+```
+
+(d)
+```{r}
+M_cars <- lm(dist ~ speed, data = cars)
+plot(cars$speed, M_cars$residual, pch = 19, xlab = "Speed of Cars",
+     ylab = "Residuals", main = "Residual Plot of Model")
+abline(h = 0, lwd = 3, col = 'blue')
+#locator(n = 1)
+text(x = 20.57324-1.5, y = -28.8744, c("NEG"), col = 'red')
+
+```
+
+(e)
+
+```{r}
+trans_cars <- cbind(1:nrow(cars),cars)
+colnames(trans_cars) <- c("orders", colnames(cars))
+attach(trans_cars)
+```
+
+
+```{r}
+M_transcars <- lm(dist ~ speed, data = cars)
+plot(cars$speed, M_transcars$residual, pch = 19, xlab = "Speed of Cars", ylab = "Residuals", main = "Residual Plot of Model")
+abline(h = 0, lwd = 3, col = 'blue')
+#identify(x=speed, y=M_transcars$residuals, labels = orders, n = 2)
+#The row number is 17 and 31.
+#locator(2)
+text(x = c(13.13536, 16.76210), y = c(1.1613466, 0.6493736)+3, c(17, 31))
+```
+
+Question 2: (4.4)
+
+```{r}
+attach(mtcars)
+```
+
+```{r}
+par(mfrow = c(2,2))
+plot(x = disp, y = mpg, pch = 19, xlab = "Displacement", ylab = "Mileage", main = "")
+lines(lowess(disp, mpg), lwd = 2, col = 'red')
+plot(x = disp, y = wt, pch = 19, xlab = "Weight", ylab = "Mileage", main = "")
+lines(lowess(disp, wt), lwd = 2, col = 'red')
+plot(x = disp, y = hp, pch = 19, xlab = "Housepower", ylab = "Mileage", main = "")
+lines(lowess(disp, hp), lwd = 2, col = 'red')
+plot(x = disp, y = drat, pch = 19, xlab = "Rear Axle Ratio", ylab = "Mileage", main = "")
+lines(lowess(disp, drat), lwd = 2, col = 'red')
+```
+It seems that displacement and weight have stronger relationship than the other two variables. For these two, it is a little hard to distinguish, but intuitively from the graph, displacement have stronger relationship with mileage since the absolute value of slope is greater than the other one.
+
+Question 2: (4.6)
+  
+  
+(a)
+```{r}
+curve(dbeta(x, 2, 6), col = "lightpink", lwd = 2, ylab = "Density", ylim = c(0,3))
+curve(dbeta(x, 4, 4), col = "lightblue", lwd = 2, add = TRUE)
+curve(dbeta(x, 6, 2), col = "lightgreen", lwd = 2, add = TRUE)
+legend("top", col = c("lightpink", "lightblue", "lightgreen"), lty = c(1,1,1), c("B(2,6)","B(4,4)","B(6,2)"))
+```
+(b)
+
+```{r}
+curve(dbeta(x, 2, 6), col = "lightpink", lwd = 2, ylab = "Density", ylim = c(0,3))
+curve(dbeta(x, 4, 4), col = "lightblue", lwd = 2, add = TRUE)
+curve(dbeta(x, 6, 2), col = "lightgreen", lwd = 2, add = TRUE)
+legend("top", col = c("lightpink", "lightblue", "lightgreen"), lty = c(1,1,1), c("B(2,6)","B(4,4)","B(6,2)"))
+title(expression(f(y)==frac(1,B(a,b))*y^{a-1}*(1-y)^{b-1}))
+```
+(c)  
+
+```{r}
+curve(dbeta(x, 2, 6), col = "lightpink", lwd = 2, ylab = "Density", ylim = c(0,3))
+curve(dbeta(x, 4, 4), col = "lightblue", lwd = 2, add = TRUE)
+curve(dbeta(x, 6, 2), col = "lightgreen", lwd = 2, add = TRUE)
+legend("top", col = c("lightpink", "lightblue", "lightgreen"), lty = c(1,1,1), c("B(2,6)","B(4,4)","B(6,2)"))
+title(expression(f(y)==frac(1,B(a,b))*y^{a-1}*(1-y)^{b-1}))
+text(c(0.2,0.2,0.2), y = c(0.2, 1.5, 2.5), col = c("lightgreen", "lightblue", "lightpink"), c("B(6,2)", "B(4,4)", "B(2,6)"))
+
+```
+(d)  
+
+
+```{r}
+curve(dbeta(x, 2, 6), col = "lightpink", lwd = 2, ylab = "Density", ylim = c(0,3), lty = 1)
+curve(dbeta(x, 4, 4), col = "lightblue", lwd = 2, add = TRUE, lty = 2)
+curve(dbeta(x, 6, 2), col = "lightgreen", lwd = 2, add = TRUE, lty = 3)
+legend("top", col = c("lightpink", "lightblue", "lightgreen"), lty = c(1,2,3), c("B(2,6)","B(4,4)","B(6,2)"))
+title(expression(f(y)==frac(1,B(a,b))*y^{a-1}*(1-y)^{b-1}))
+text(c(0.2,0.2,0.2), y = c(0.2, 1.5, 2.5), col = c("lightgreen", "lightblue", "lightpink"), c("B(6,2)", "B(4,4)", "B(2,6)"))
+```
+(e)  
+
+
+```{r}
+curve(dbeta(x, 2, 6), col = "lightpink", lwd = 2, ylab = "Density", ylim = c(0,3), lty = 1)
+curve(dbeta(x, 4, 4), col = "lightblue", lwd = 2, add = TRUE, lty = 2)
+curve(dbeta(x, 6, 2), col = "lightgreen", lwd = 2, add = TRUE, lty = 3)
+legend("top", col = c("lightpink", "lightblue", "lightgreen"), lty = c(1,2,3), c("B(2,6)","B(4,4)","B(6,2)"))
+title(expression(f(y)==frac(1,B(a,b))*y^{a-1}*(1-y)^{b-1}))
+```
+Question 4: (6.3)
+  
+  
+(a)
+```{r}
+nyc <- read.table(here::here("nyc-marathon.txt"), sep = ",", header = TRUE)
+nycf <- nyc[which(nyc$Gender == "female"),c(1,3)]
+colnames(nycf) <- c("time.f", "age.f")
+attach(nycf)
+
+nycm <- nyc[which(nyc$Gender == "male"),c(1,3)]
+colnames(nycm) <- c("time.m", "age.m")
+attach(nycm)
+```
+
+
+```{r}
+var.test(age.m, age.f)
+t.test(age.m, age.f, alternative = "greater", var.equal = TRUE)
+```
+For the variance test, we cannot reject the null hypothesis that the ration of the variance of men and women's age is 1 at 0.95 significance level, so I used the var.equal = TRUE in the t.test.
+The p-value is so small that we can reject the null hypothesis, and the mean of the age of all men is greater than the mean of all women at significant level 0.05. 
+
+
+  
+  
+(b)
+
+First, I need to calculate the pooled variance, and then calculate the interval.
+$$S_p^2 = \frac{(n_1-1)s_1^2+(n_2-1)s_2^2}{(n_1-1)+(n_2-1)}$$
+In which, $s_1$ is the sample variance of men's age, $s_2$ is the sample variance of the women's age. $n_1$ is the number of men in the survey and $n_2$ is the number of women in the survey.
+
+```{r}
+n1 <- length(age.m)
+n2 <- length(age.f)
+s1 <- var(age.m)
+s2 <- var(age.f)
+sp <- ( (n1-1)*s1 + (n2-1)*s2 ) / ( (n1-1) + (n2-1) )
+```
+
+And the confidence interval is:
+$$\bar{Age}_m-\bar{Age}_f \ \pm \ t_{\frac{\alpha}{2},n_1+n_2-2}\times\sqrt{\frac{S_p^2}{n_1}+\frac{S_p^2}{n_2}}$$
+
+
+```{r}
+```
+
+
+```{r}
+a <- qt(0.95, n1+n2-2) * sqrt(sp/n1 + sp/n2)
+diff_mu <- mean(age.m) - mean(age.f)
+lower <- diff_mu - a
+upper <- diff_mu + a
+intv <- matrix(c(lower, upper),1,2)
+colnames(intv) <- c("Lower", "Upper")
+print(intv)
+```
+
+
+
+Question 5: (6.4)    
+
+(a)
+```{r}
+dat_length <-  as.integer( scan(text = "22 18 27 23 24 15 26 22 24 25 24 18
+18 26 20 24 27 16 30 22 17 18 22 26", what = "integer") )
+
+
+```
+  
+  
+(b)
+```{r}
+t.test(dat_length, mu = 26)
+```
+According to the result of the one sample t test, the p-value is very small and we can reject the null hypothesis, and the mean of the population is not equal to 26 at significance level 0.05.
+
+(c)  
+```{r}
+t.test(dat_length, mu = 26, conf.level = 0.9)
+```
+
+Here, the same and result is same as b, but we want the 95% CI for the population mu. From the result, the CI should be:
+$$[ \ 20.858, 23.642 \ ]$$
+(d)
+
+```{r}
+qqnorm(dat_length, pch = 19, main = "Q-Q Plot of Length of String")
+qqline(dat_length, col = 'red', lwd = 2)
+
+```
+
+It seems that the length of the string is not that normally distributed since there are many points far from the qqline, especially on the tail of the distribution.
+
+Question 6: (6.6)
+  
+  
+(a)
+```{r}
+dat_it <- read.table(here::here("Etruscan-Italian.txt"))
+etr <- dat_it[which(dat_it$group == "Etruscan"),]
+ita <- dat_it[which(dat_it$group == "Italian"),]
+attach(dat_it)
+```
+First, I want to carry out one variance test to check whether the variance of them are the same.
+
+```{r}
+var.test(etr$x, ita$x)
+```
+The p-value is 0.75, so we cannot reject the null hypothesis that the variance of these two populations are the same. Then we will use the t test and the variance are equal.
+
+```{r}
+t.test(etr$x, ita$x, var.equal = TRUE)
+```
+Here, the p-value is very small. So null hypothesis is reject, which means that there are some difference in the skill size of the mean of the population of these two groups.
+
+
+(b)  
+
+Still, from the result above, the 95% CI should be:
+$$[ \ 9.45365, \ 13.20825\ ] $$
+
+Question 7: (6.7)
+  
+  
+Since it is a paired t-test, we are going to first make a pairwise difference and save it as the difference. Then test whether the mean of the difference is 0. 
+```{r}
+winner = c(185, 182, 182, 188, 188, 188, 185, 185, 177, 182, 182, 193, 183, 179, 179, 175)
+opponent = c(175, 193, 185, 187, 188, 173, 180, 177, 183,185, 180, 180, 182, 178, 178, 173)
+dif <- winner - opponent
+t.test(dif, mu = 0)
+```
+Here the p-value is 0.2041, it is not so significant. We cannot reject the null hypothesis that there is no difference between the mean of election winner and loser.
+
+
+Question 8: (7.5)
+
+```{r}
+library(gamair)
+data("hubble")
+M_hub <- lm(hubble$y ~ hubble$x - 1)
+summary(M_hub)
+```
+So the estimated Hubble constant is 76.581.
+
+
+
+
+
+Question 9: (7.7)
+
+```{r}
+M1 <- lm(cars$dist ~ cars$speed)
+M2 <- lm(cars$dist ~ cars$speed - 1 )
+summary(M1)
+summary(M2)
+```
+The $R^2$ of the model with intercept is 0.651 with adjusted $R^2$ is 0.644. For the model without the intercept, the $R^2$ is 0.896 and adjusted $R^2$ 0.894. R square means how much of the variance of dependent variable can be explained by the independent variables in our model. It is obvious that the model without the intercept is better since it explains more information.
+
+
+Question 10: (7.11)
+
+
+```{r}
+twins <-  read.table(here::here("twins.txt"), header = TRUE, sep = ',', na.strings = '.')
+```
+
+```{r}
+twins_new <- cbind(twins$DLHRWAGE, twins$HRWAGEL)
+twins_new <- na.omit(twins_new)
+colnames(twins_new) <- c("DLHRWAGE", "HRWAGEL")
+twins_new <- as.data.frame(twins_new)
+
+
+twins_new$DLHRWAGE <- as.numeric(twins_new$DLHRWAGE)
+twins_new$LHRWAGEL <- log(as.numeric(twins_new$HRWAGEL))
+M3 <- lm(twins_new$DLHRWAGE ~  twins_new$LHRWAGEL)
+summary(M3)
+```
+Here is the residual plot of the model:
+
+```{r}
+plot(M3$fitted.values, M3$residuals, pch = 19, xlab = "Fitted Values", ylab = "Residuals")
+abline(h = 0, col = 'red', lwd = 2)
+```
+```{r}
+qqnorm(M3$residuals, pch = 19)
+qqline(M3$residuals, lwd = 2, col = 'red')
+```
+The right of the plot is not that normally distributed. So I think the assumption is violated. And the assumption of constant variance is still okay for this model, but still seems to have lower variance when the fitted values are bigger. And the prediction can be expressed by:
+$$\hat{Log}_{DIFF}=1.149 -0.461\times log(HRWAGEL)$$
+
+
+Question 11: James(3.1)
+The null hypothesis is the true coefficient is 0, ant the alternative hypothesis is the true coefficient is not 0. From the table, I can see that, the p-value of intercept, TV and radio is very small, but the p-value of newspaper is very large. p-value measures when null hypothesis is true, the probability we observe a more extreme case than the one we observed now. Therefore, TV and radio has a significant impact on the sales, which means that the coefficient is significantly not 0 at significance level 0.05. However, newspaper does not have a significant impact on the sale, which means that we cannot reject the null hypothesis that the coefficient of newspaper is 0.
+
+Question 12: James(3.3)
+
+(a)  
+
+The true answer should be iii. Since the $\hat{\beta}_3$ is positive but $\hat{\beta}_5$ is negative, which means that if there is no interactions, and other variables remain the same, mean of the salary of women will be greater than  men's. However, here is a interaction between GPA and gender and the coefficient is negative, which means that if IQ and GPA are the same, and the GPA is higher than 3.5, then males on average earn more than females.
+
+(b)  
+
+$$\hat{Y} = 50 + 20\times 4.0 + 0.07\times 110+35+0.01\times110\times4.0-10\times4=137.1$$
+(c)
+
+It is not correct. The evidence is provided by the p-value but not the value of coefficient. If the p-value of the coefficient is smaller than a given significance level, there should be evidence that the interaction exist. We cannot judge it only from the coefficient, we should also consider the significance.
+
+
+```{r}
+50 +80+7.7+4.4-40+35
+```
+
+
+Question 13: James(3.8)
+
+```{r}
+library(ISLR)
+attach(Auto)
+```
+
+(a)
+
+```{r}
+
+M_auto <- lm(mpg ~ horsepower, data = Auto)
+summary(M_auto)
+```
+There is significant relationship between horsepower and miles per gallon. And the relationship is negative, the relationship is strong since the p-value is small enough and the coefficient is significant. The 95% CI for the one with horsepower of 98 should be:
+
+```{r}
+pre <- data.frame(horsepower = 98)
+PI <- predict(M_auto, pre, interval = "prediction")
+CI <- predict(M_auto, pre, interval = "confidence")
+res <- rbind(CI, PI)
+rownames(res) <- c("Confidence Interval", "Prediction Interval")
+colnames(res) <- c("Predict", "Lower", "Upper")
+print(res)
+```
+(b)
+
+
+```{r}
+plot(x = horsepower, y = mpg, pch = 19, xlab = "Horsepower", ylab = "Miles Per Gallon", main = "")
+abline(M_auto$coefficients, col = 'red', lwd = 2)
+```
+
+(c)
+
+```{r}
+plot(M_auto$fitted.values, M_auto$residuals, xlab = "Fitted Values", ylab = "Residuals", pch = 19)
+abline(h = 0, lwd = 2, col = 'red')
+```
+The residuals don't have constant variance, on the contrary, they have a form of quadratic, and also does not seem to be normal. Therefore, to improve this model, we can add one quadratic form of horsepower to this model.
+
+Question 14: James(3.9)
+
+(a)
+
+```{r}
+Auto_new <- Auto[,1:8]
+pairs(Auto_new)
+```
+(b)
+```{r}
+cor(Auto_new)
+```
+
+(c)
+
+```{r}
+M_mauto <- lm(mpg ~ ., data = Auto_new)
+summary(M_mauto)
+```
+After checking the F-statistic and p-value of the F test, we know that there is some relationship between covariates and response. Displacement, weight, year and origin (and intercept) are significant. The coefficient of year means, the expectation of miles per gallon will increase around 0.75 if the year increases one, with all the other variables remain the same. 
+
+
+(d)
+
+I will use leverage plot and residual plot to check whether there are any outliers and see high leverage points.
+
+```{r}
+par(mfrow = c(1,2))
+plot(M_mauto$residuals, xlab = "", ylab = "Residuals", main = "Residual Plot of Regression Model", pch = 19)
+abline(h = 0, col = 'red', lwd = 2)
+plot(hatvalues(M_mauto), pch = 19, ylab = "Leverage", xlab = "", main = "Leverage Plot" )
+
+
+```
+From the residual plot, I don't think the residual plot is normal since there seems to be a quadratic trend for the residuals. But no outliers for the residuals since I don't think there are some points that are very far from others. However, when it comes to the leverage plot, I think there are some x which has extremely high leverage value since there is one beyond 0.15 and one around 0.1, which is far larger than the others.
+
+(e)
+
+```{r}
+M_mauto_int <- lm(mpg ~ .^2, data = Auto_new)
+summary(M_mauto_int)
+```
+We can see that the interaction between displacement and year, acceleration and year, and acceleration and origin are significant at significance level 0.05.
+
+(f)
+
+I would like to use variable displacement, year, weight and origin for base term, and an interaction term including displacement and year, also with all quadratic form of the base variable since it seems that there are quadratic residual forms in the plot there, then I will re-select variables based on this huge model.
+```{r}
+M_mauto_trans_1 <- lm(mpg ~ displacement + year + weight + origin + displacement*year + I(displacement^2) + I(year^2) + I(weight^2) + I(origin^2), data = Auto_new)
+summary(M_mauto_trans_1)
+```
+There seems to be quadratic relationship among all of them except variable displacement since all the quadratic form seems to be significant except the displacement, here is the residual plot:
+
+```{r}
+plot(M_mauto_trans_1$residuals, ylab = "Residuals", main = "Residual Plot", pch = 19)
+abline(h = 0, col = 'red', lwd = 2)
+```
+The residual plot seems better but there seems to be a polynomial form but not that obvious, but the adjusted $R^2$ seems to be greater.
+
+```{r}
+plot(hatvalues(M_mauto_trans_1), ylab = "Leverage", pch = 19)
+```
+There is still high leverage x existing. 
+
+```{r}
+qqnorm(M_mauto_trans_1$residuals, pch = 19)
+qqline(M_mauto_trans_1$residuals, lwd = 2, col = 'red')
+```
+However, here is the problem, the residuals are not so normally distributed, we should try to change a model or do some further transformations.
+
+
+Question 15: James(3.10)
+
+(a)
+```{r}
+library(ISLR)
+M_seat <- lm(Sales ~ Price + Urban + US, data = Carseats)
+summary(M_seat)
+```
+
+(b)
+
+The unit sales (in thousands) will decrease 0.054 on average if the price goes up for 1 unit, with all the other variables remain the same.
+With the other variables remaining the same, stores not in urban will have 0.022 more unit sales than those in urban.
+With the other variables remaining the same, stores in US will have 1.2 more unit sales than those in not in US.
+
+
+(c)
+$$Y_i = \beta_0 + X_{i,price}\beta_{price}+X_{Urban}\beta_{Urban}+X_{US}\beta_{US}+\epsilon_i$$
+***Here, $X_{Urban}$ is an indicator that whether this store locates in urban, if this store is in urban, it is 1, or it will be 0 for this store. $X_{US}$ is also an indicator that whether this store locates in US, if it locates in US, then it is 1, otherwise 0.***
+
+(d)
+The predictors that are significant are the intercept, price and whether the store locates in US.
+
+(e)
+
+```{r}
+M_seat_small <- lm(Sales ~ Price + US, data = Carseats)
+summary(M_seat_small)
+```
+(f)
+
+First, I will do the residual analysis then I will use AIC, BIC and R squared to make judgement and selection between them.
+
+```{r}
+par(mfrow = c(1,2))
+plot(M_seat$residuals, pch = 19, ylab = "Residuals")
+abline(h = 0, col = 'red', lwd = 2)
+plot(M_seat_small$residuals, pch = 19, ylab = "Residuals")
+abline(h = 0, col = 'red', lwd = 2)
+```
+```{r}
+par(mfrow = c(1,2))
+qqnorm(M_seat$residuals, pch = 19)
+qqline(M_seat$residuals, lwd = 2, col = 'red')
+
+qqnorm(M_seat_small$residuals, pch = 19)
+qqline(M_seat_small$residuals, lwd = 2, col = 'red')
+```
+It seems that there are no outliers and the residuals are normally distributed for both of them. 
+
+
+```{r}
+par(mfrow = c(1,2))
+plot(hatvalues(M_seat), pch = 19, ylab = "Leverage", main = "Leverage of Full Models")
+plot(hatvalues(M_seat_small), pch = 19, ylab = "Leverage", main = "Leverage of Smaller Models")
+```
+Both cases have high leverage values, but smaller model performs better.
+
+I will use AIC, BIC and adjusted $R^2$ these three criteria to make judgement.
+
+```{r}
+aic <- c(AIC(M_seat),AIC((M_seat_small)))
+bic <- c(BIC(M_seat),BIC((M_seat_small)))
+r <- c(0.2335, 0.2354)
+com <- rbind(aic, bic, r)
+rownames(com) <- c("AIC", "BIC", paste("Adjusted", expression(R^2)))
+colnames(com) <- c("Base Model", "Smaller Model")
+knitr::kable(com, format = "latex")
+```
+Here, the smaller model has smaller AIC, BIC and greater adjusted R square, which means that smaller model fits the data better. 
+
+
+
+
+
+
+(g)
+```{r}
+coe <- M_seat_small$coefficients
+std <- c(0.63098, 0.00523, 0.25846)
+lower_CI <- coe + qt(0.025, 397)*std
+upper_CI <- coe + qt(0.975, 397)*std
+Conf.int <- cbind(lower_CI, upper_CI)
+knitr::kable(Conf.int, format = "latex")
+```
+
+
+(h)
+
+From the picture form question f, it seems that there are not any obvious outliers but there are some points with high leverage values.
+```{r}
+which.max(hatvalues(M_seat_small))
+```
+So the highest leverage value point is the 43th data, and it is very far from other leverage values. But there are no outliers.
+
+
+

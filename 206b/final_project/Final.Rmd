@@ -1,0 +1,352 @@
+---
+title: "Final Exam for 206B"
+author: "Qi Wang"
+date: "2022/3/17"
+output: 
+  pdf_document:
+    latex_engine: xelatex 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+rm(list = ls())
+```
+
+# Question a: Descriptive Statistics 
+First of all, this data is a longitudinal data, it describes the weight gained by pregnant women during a survey. So I reshaped the data into a wide form instead of a long form for further convenience. And also, I made a plot about the personal trend and overall trend for the women's weight gain in our survey.
+
+For each woman, the weight gain can be plotted as in the figure \ref{fig:trend}. We can see that as time goes by, the weight gained by women are having a increasing trend for almost all the people in the survey. Also, I provided one overall trend between the average weight and time trend.. Since this data includes longitudinal properties, the mean and the summary of the data will be less informative, but the summary are provided as follows, the average or properties of time is not useful since they are similar to each other. Therefore, only information about weights are provided.
+```{r trend, warning=FALSE, fig.align='center', fig.cap="Time Trend of Weight Gain for Each Woman", out.width="95%"}
+data <- read.csv(here::here("pregnency-data.csv"), header = TRUE)
+ni <- as.vector(table(data$patient))
+N <- nrow(data)
+dat <- reshape(data, v.names=c("weight","time"), timevar="visit",idvar="patient", direction="wide")
+dat <- as.matrix(dat[,-1])
+
+
+w_s <- seq(from = 2, to = 14, by = 2 )
+t_s <- seq(from = 3, to = 15, by = 2)
+weight <- dat[ , w_s]
+time <- dat[ , t_s]
+I <- nrow(dat)
+
+par(mfrow = c(1,2))
+plot(x = time[1, ], y = weight[1,], type = 'l', col = 1, ylim = c(min(na.omit(weight)), max(na.omit(weight))), main = "Time Trend for Each Woman",
+     xlab = "Time", ylab = "Weight Gain") 
+for (i in 2:I) {
+  lines(x = time[i, 1:ni[i]], y = weight[i, 1:ni[i]], col = i)
+}
+
+plot(x = apply(na.omit(time), 2, mean), y = apply(na.omit(weight), 2, mean), type = 'l', lwd = 2, col = "red",
+     xlab = "Mean of Time", ylab = "Mean of Weight", main = "Overall Mean Trend")
+```
+
+```{r}
+summary(na.omit(weight))
+```
+# Question b: Joint Posterior Distribution
+
+I used the handwritten form for this question, and the notes has been attached at the end of the file. 
+
+For the algorithm part, it is a Gibbs sampler algorithm, but we need MCMC when sampling several parameters. I find the full conditional posterior distribution of $\beta_{0i}$ and $\bar{\beta_0}$ are a normal distribution, and the full conditional posterior distribution of $\sigma^2$ and $\tau^2$ are inverse gamma distribution, which are easy to generate directly from the program. However, the distribution of $\beta_1$ and $\beta_2$ are not in closed form, indicating that we have to use the MCMC method when we get samples from this distribution.
+
+## Algorithm Discription:
+
+### Step 1: Specify an initializing value for all parameters
+
+Give values for $\beta_{0i}^{(1)}$, $\beta_{1}^{(1)}$, $\beta_{2}^{(1)}$, $\bar{\beta_{0}}^{(1)}$, ${\sigma^2}^{(1)}$, ${\tau^2}^{(1)}$
+
+### Step 2: Use Metroplis Hasting with Gibbs and loop for i from 1 to 12000
+
+Generate $\beta_{0i}^{(i+1)}$, $\bar{\beta_{0}}^{(i+1)}$, ${\sigma^2}^{(i+1)}$, ${\tau^2}^{(i+1)}$ directly from the full conditional posterior distribution. But for 
+$\beta_{1}^{(i+1)}$, $\beta_{2}^{(i+1)}$, I will use Metropolis Hasting algorithm here. My proposal distribution is a **Random Walk**:
+
+$$q(\theta^{(i+1)}|\theta^{(i)})\propto exp(-\frac{(\theta^{(i+1)}-\theta^{(i)})^2}{2d^2})$$
+First, for $\beta_{1}^{(i+1)}$ generation, use the proposal distribution to propose a new value and denote to $\xi$, then calculate the transit probability:
+
+$$p = min\{   \frac{\pi(\xi)q(\theta^{(i)}|\xi)}{\pi(\theta^{(i)})q(\xi|\theta^{(i)})}, 1  \}$$
+
+Since this is a random walk, $q(\theta^{(i)}|\xi) =q(\xi|\theta^{(i)})$, therefore:
+
+
+$$p = min\{   \frac{\pi(\xi)}{\pi(\theta^{(i)})}, 1  \}$$
+$\pi$ here is just the full conditional probability function of $\theta$
+
+Generate an index number, for example, k which follows a uniform distribution between 0 and 1. Compare the value of p between k:
+$$p>k: \theta^{(i+1)} = \xi $$
+$$p \leq k : \theta^{(i+1)}=\theta^{(i)}$$
+Then, same method for generate $\beta_2^{(i+1)}$. Until now, we have finished one update for all the parameters in a Gibbs sampler.
+
+
+### Step 3: Burn-in and thinning
+
+Since we have strong auto correlation after generating the raw samples from the posterior distribution, we have to do the burn-in and thinning.
+
+#### Burn-in: Discard the front 12000 samples
+
+#### Thinning: For the rest 88000 samples, we get samples every 88 sample, then we get 1000 better samples in total.
+
+
+### Step 4: Make inference
+
+Since we have the 1000 samples after the burn-in and thinning, we can make inference based on these samples, for example, the credible interval, posterior mode, posterior mean, median and so on.
+
+
+
+
+# Question c: Hyperparameter Specification
+
+I used this set of hyper parameters: $\bar{\beta}_1=10$, $\bar{\beta}_2=-0.15$, $u^2_1=100$, $u^2_2=100$, $\mu_0=30$, $v^2=1000$, $a_\sigma=1$, $a_\tau=1$, $b_\sigma=1$, $b_\tau=1$. We have many ways to specify the hyper parameter, in my method, I just used the empirical Bayesian. I used a simple random parameter for the mean, but I must set the variance to be large to make sure that the prior information is very weak. Then, I run my algorithm, then it did not work well, but I can approximately get a "proper" range of the hyper parameters by definition of the parameter. Then, I used the ones seems perform well to be my final parameter.
+
+Furthermore, the length of a step for a proposal distribution should also be selected, i.e., the standard deviation of the random walk kernel. I get the standard deviation by the approximate posterior sampling by a random selected hyper parameter and then fixed it little by little to fix it with the greatest effective sample size. This is really hard in my project, I used almost 60% of time to get the standard deviation of the random walk kernel. I think I can use adaptive MH but I am not sure whether it is cheating since selecting the variance is also a core part of the MH algorithm. Finally, I chose the standard deviation of beta_1 proposal to be 0.4 and 0.003 for beta_2.
+
+
+# Question d: MCMC within Gibbs Coding 
+
+```{r}
+# Preparation
+iter <- 100000
+beta_0 <- matrix(NA, nrow = I, ncol = iter)
+beta_1 <- beta_2 <- sigma <- tau <- beta_0_bar <- rep(NA, iter)
+rho <- matrix(NA, nrow = 2, ncol = iter)
+beta_0[,1] <- beta_0_bar[1] <- 30
+beta_1[1] <- 10
+beta_2[1] <- 0
+sigma[1] <- tau[1] <- 100 
+
+
+#Specify hyper parameter
+
+beta_1_bar <- 10
+beta_2_bar <- -0.15
+u_1 <- 100
+u_2 <- 100
+mu_0 <- 30
+v <- 1000
+a_sig <- 1
+b_sig <- 1
+a_tau <- 1
+b_tau <- 1
+
+#Write functions for Metropolis Hasting part:
+
+exp_pi_b1 <- function(beta0, beta1,beta2, beta1bar, u1, sig){
+  
+  y = -(beta1-beta1bar)^2 / (2*u1) - sum((weight - beta0/(1+beta1*exp(beta2*time)) )^2, na.rm = TRUE) /(2*sig)
+  
+  return(y)
+}
+
+exp_pi_b2 <- function(beta0, beta1,beta2, beta2bar, u2, sig){
+  
+  y = -(beta2-beta2bar)^2 / (2*u2) - sum((weight - beta0/(1+beta1*exp(beta2*time)) )^2, na.rm = TRUE) /(2*sig)
+  
+  return(y)
+}
+
+```
+```{r}
+#Begin !!!!!!!!!!!!!
+
+i <- 1
+for (i in 1:(iter-1)) {
+#Generate beta0
+  
+  
+mean_vec <-  ( rowSums( weight / ( 1 + beta_1[i]*exp(beta_2[i]*time) ), na.rm = TRUE) / sigma[i] + beta_0_bar[i] / tau[i] ) /
+               (   rowSums(   1 / ( 1 + beta_1[i]*exp(beta_2[i]*time) )^2 , na.rm = TRUE) / sigma[i] + 1/tau[i]    )
+
+var_vec <- 1 / (   rowSums(   1 / ( 1 + beta_1[i]*exp(beta_2[i]*time) )^2 , na.rm = TRUE) / sigma[i] + 1/tau[i]    )
+
+beta_0[,i+1] <- mvtnorm::rmvnorm(1, mean = mean_vec, sigma = diag(var_vec, I )) 
+
+
+#Generate beta0bar
+
+mean_beta0bar <- (sum(beta_0[,i+1])/tau[i] + mu_0/v) / (I/tau[i] + 1/v)
+var_beta0bar <- 1 / (I/tau[i] + 1/v)
+beta_0_bar[i+1] <- rnorm(1, mean = mean_beta0bar, sd = sqrt(var_beta0bar))
+
+
+#Generate beta1
+
+#step1: Propose a new value 
+
+rate_1 <- 0.4
+
+beta1_xi <- rnorm(1, mean = beta_1[i], sd = rate_1)
+
+#step2: calculate transit probability
+
+new_prob_1 <- exp_pi_b1(beta0 = beta_0[,i+1], beta1 = beta1_xi, beta2 = beta_2[i], beta1bar = beta_1_bar, u1 = u_1, sig = sigma[i])
+old_prob_1 <- exp_pi_b1(beta0 = beta_0[,i+1], beta1 = beta_1[i], beta2 = beta_2[i], beta1bar = beta_1_bar, u1 = u_1, sig = sigma[i])
+p_1 <- min(c(1, exp( new_prob_1 - old_prob_1 )))
+
+#step3: Decide whether to transit
+
+l1 <- runif(1)
+if(l1 <= p_1){
+  beta_1[i+1] <- beta1_xi
+  }else{
+  beta_1[i+1] <- beta_1[i]
+}
+
+#Generate beta2
+
+#step1: Propose a new value 
+
+rate_2 <- 0.003
+beta2_xi <- rnorm(1, mean = beta_2[i], sd = rate_2)
+
+#step2: calculate transit probability
+
+new_prob_2 <- exp_pi_b2(beta0 = beta_0[,i+1], beta1 = beta_1[i+1], beta2 = beta2_xi, beta2bar = beta_2_bar, u2 = u_2, sig = sigma[i])
+old_prob_2 <- exp_pi_b2(beta0 = beta_0[,i+1], beta1 = beta_1[i+1], beta2 = beta_2[i], beta2bar = beta_2_bar, u2 = u_2, sig = sigma[i])
+p_2 <- min(c(1, exp( new_prob_2 - old_prob_2 )))
+
+#step3: Decide whether to transit
+
+l2 <- runif(1)
+if(l2<=p_2){
+  beta_2[i+1] <- beta2_xi
+  }else{
+  beta_2[i+1] <- beta_2[i]
+}
+
+rho[1, i] <- p_1
+rho[2, i] <- p_2
+
+#Generate sigma
+
+rate_param <-  1/2 * sum(  ( weight - beta_0[,i+1]/(1+beta_1[i+1]*exp(beta_2[i+1]*time)) )^2  ,na.rm = TRUE) + b_sig
+
+inv_sig <- rgamma(1, shape = N/2 + a_sig, rate = rate_param)
+
+sigma[i+1] <- 1/inv_sig
+
+
+#Generate tau
+
+rate_param <- 1/2 * sum(  (beta_0[,i+1] - beta_0_bar[i+1])^2    ) + b_tau
+inv_tau <- rgamma(1, shape = I/2 + a_tau, rate = rate_param)
+tau[i+1] <- 1/inv_tau
+
+}
+
+
+
+```
+
+First, I will check for convergence, from the trace plot in figure \ref{fig:convergence}, we can see that after the burn-in and thinning process, the chains mixed well.q
+
+```{r convergence, fig.align='center', fig.cap="Trace Plot"}
+par(mfrow = c(2,3))
+thin <- seq(from = 12000, to = 100000, by = 88)
+plot(beta_1[thin], type = 'l', ylab = "beta_1")
+plot(beta_2[thin], type = 'l', ylab = "beta_2")
+plot(beta_0_bar[thin], type = 'l', ylab = "beta0_bar")
+plot(sigma[thin], type = 'l', ylab = "sigma")
+plot(tau[thin], type = 'l', ylab = "tau")
+plot(beta_0[1,thin], type = 'l', ylab = "beta_01")
+```
+
+
+# Question e: Interpretation
+
+To interpret the parameters of the other parameters except $\beta_{0i}$, I simply focused on three concepts, one is posterior mean, the other two is 2.5% quantile and 97.5% quantile, for $\beta_1, \beta_2, \bar{\beta_0}, \sigma, \tau$, I reported a posterior mean and a lower bound and an upper bound. They are got from the Monte Carlo simulation, since we got 1000 samples after burn-in and thinning the chain, the mean of them is just the mean of these samples. By LLN, it converges to the true posterior mean as sample size goes to infinity. And the 2.5% quantile and the 97.5% quantile can construct an interval with a lower bound and an upper bound, this is a 95% credible interval since they are uni-modal distribution (I checked the histogram for $\beta_1$ and $\beta_2$), so the center is the HPD. The credible interval means, the probability of the true parameter being in this interval is 0.95.
+
+The interpretation for $\beta_{0i}$ are a little different, because it is a longitudinal model, each person has its own $\beta_0$, so I presented the table about each $\beta_{0i}$. The number of each row corresponds to a specified person with the certain ID (the original order in the data set) at the beginning of this row. It could be interpreted as the posterior mean, 2.5% and 97.5 quantile of the posterior distribution of $\beta_{0i}$ of patient $i$, and there is a 0.95 probability that the $\beta_{0i}$ of patient $i$ is in this interval.
+
+
+
+
+```{r beta0}
+beta_0_mean <- apply(beta_0[,thin], 1, mean)
+beta_0_Lower <- apply(beta_0[,thin], 1, quantile, prob = 0.025)
+beta_0_Upper <- apply(beta_0[,thin], 1, quantile, prob = 0.975)
+ID <- 1:30
+tab_beta0 <- cbind(ID, beta_0_mean, beta_0_Lower, beta_0_Upper)
+colnames(tab_beta0) <- c("Patient ID", "Posterior Mean", "2.5% Quantile", "97.5% Quantile")
+knitr::kable(tab_beta0, caption = "Summary of Beta_0i", align = 'c')
+```
+```{r others}
+
+beta_1_sum <- c( mean(beta_1[thin]), quantile(beta_1[thin], 0.025), quantile(beta_1[thin], 0.975))
+beta_2_sum <- c( mean(beta_2[thin]), quantile(beta_2[thin], 0.025), quantile(beta_2[thin], 0.975))
+beta_0_bar_sum <-  c( mean(beta_0_bar[thin]), quantile(beta_0_bar[thin], 0.025), quantile(beta_0_bar[thin], 0.975))
+sig_sum <- c( mean(sigma[thin]), quantile(sigma[thin], 0.025), quantile(sigma[thin], 0.975))
+tau_sum <- c( mean(tau[thin]), quantile(tau[thin], 0.025), quantile(tau[thin], 0.975))
+
+tab_others <- rbind(beta_1_sum, beta_2_sum, beta_0_bar_sum, sig_sum, tau_sum)
+colnames(tab_others) <- c("Posterior Mean", "2.5% Lower Bound", "97.5% Upper Bound")
+rownames(tab_others) <- c("beta_1", "beta_2", "beta_0 bar", "sigma", "tau")
+knitr::kable(tab_others,align = 'c', caption = "Other Parameters Summary")
+```
+To interpret the parameters of the other parameters except $\beta_{0i}$, I simply focused on three concepts, one is posterior mean, the other two is 2.5% quantile and 97.5% quantile, for $\beta_1, \beta_2, \bar{\beta_0}, \sigma, \tau$, I reported a posterior mean and a lower bound and an upper bound. They are got from the Monte Carlo simulation, since we got 1000 samples after burn-in and thinning the chain, the mean of them is just the mean of these samples. By LLN, it converges to the true posterior mean as sample size goes to infinity. And the 2.5% quantile and the 97.5% quantile can construct an interval with a lower bound and an upper bound, this is a 95% credible interval since they are uni-modal distribution (I checked the histogram for $\beta_1$ and $\beta_2$), so the center is the HPD. The credible interval means, the probability of the true parameter being in this interval is 0.95.
+
+The interpretation for $\beta_{0i}$ are a little different, because it is a longitudinal model, each person has its own $\beta_0$, so I presented the table about each $\beta_{0i}$. The number of each row corresponds to a specified person with the certain ID (the original order in the data set) at the beginning of this row. It could be interpreted as the posterior mean, 2.5% and 97.5 quantile of the posterior distribution of $\beta_{0i}$ of patient $i$, and there is a 0.95 probability that the $\beta_{0i}$ of patient $i$ is in this interval.
+
+
+# Question f: Pridictive distribution and model checking
+
+Here are plots supporting my models. My predictive distribution performs well for the time point 1, 2, 5, 6, 7, and a little away from the true value for the time point 4, but it is okay from the figure about the trend between value and time. 
+```{r}
+y_pred <- matrix(NA, nrow = 7, ncol = length(thin))
+i <- 1
+beta_0_final<- beta_0[, thin]
+beta_1_final <- beta_1[thin]
+beta_2_final <- beta_2[thin]
+sigma_final <- sigma[thin]
+
+for (i in 1:length(thin)) {
+  mean_vec <- beta_0_final[1,i] / (1 + beta_1_final[i] * exp(beta_2_final[i] * time[1,]))
+  var_vec <- sigma_final[i]
+  y_pred[,i] <- mvtnorm::rmvnorm(1, mean = mean_vec, sigma = diag(var_vec, nrow (y_pred)))
+}
+```
+
+```{r p1, out.width="80%", fig.align='center'}
+par(mfrow = c(1,3))
+hist(y_pred[1,], probability = TRUE, main = "Predictive Distribution for Y_11", col = "lightblue", xlab = "Predicted Y_11")
+abline(v = weight[1,1], lwd = 2, col = 'red')
+text(x = 10.7, y = 0.2,"True Y_11", col = 'red' )
+
+hist(y_pred[2,], probability = TRUE, main = "Predictive Distribution for Y_12", col = "lightblue", xlab = "Predicted Y_12")
+abline(v = weight[1,2], lwd = 2, col = 'red')
+text(x = 16.6, y = 0.2,"True Y_12", col = 'red' )
+
+hist(y_pred[3,], probability = TRUE, main = "Predictive Distribution for Y_13", col = "lightblue", xlab = "Predicted Y_13")
+abline(v = weight[1,3], lwd = 2, col = 'red')
+text(x = 19, y = 0.2,"True Y_13", col = 'red' )
+```
+
+
+```{r p2, out.width="80%", fig.align='center'}
+par(mfrow = c(2,2))
+hist(y_pred[4,], probability = TRUE, main = "Predictive Distribution for Y_14", col = "lightblue", xlab = "Predicted Y_14")
+abline(v = weight[1,4], lwd = 2, col = 'red')
+text(x = 21.5, y = 0.2,"True Y_14", col = 'red' )
+
+hist(y_pred[5,], probability = TRUE, main = "Predictive Distribution for Y_15", col = "lightblue", xlab = "Predicted Y_15")
+abline(v = weight[1,5], lwd = 2, col = 'red')
+text(x = 22, y = 0.2,"True Y_15", col = 'red' )
+
+hist(y_pred[6,], probability = TRUE, main = "Predictive Distribution for Y_16", col = "lightblue", xlab = "Predicted Y_16")
+abline(v = weight[1,6], lwd = 2, col = 'red')
+text(x = 22, y = 0.2,"True Y_16", col = 'red' )
+
+hist(y_pred[7,], probability = TRUE, main = "Predictive Distribution for Y_17", col = "lightblue", xlab = "Predicted Y_17")
+abline(v = weight[1,7], lwd = 2, col = 'red')
+text(x = 26, y = 0.2,"True Y_17", col = 'red' )
+```
+```{r p3 , out.width="80%", fig.align='center'}
+plot(y = weight[1,], x = time[1,], type = 'l', lwd = 2, col = 'red', xlab = "Time", ylab = "Weight", main = "Comparisons Between True and Predictive Values")
+lines(y = apply(y_pred, 1, mean), x = time[1,], type = 'l', col = 'blue', lwd = 2)
+legend("topleft", c("True Value", "Predictive Value"), col = c('red','blue'), lty = c(1,1))
+```
+
+
+
+
+
+

@@ -1,0 +1,262 @@
+---
+title: "STATS_204_HW4"
+author: "Qi Wang"
+output:
+  pdf_document: 
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+\noindent 
+Question 1: (9.1)
+
+```{r}
+rounding <- read.table("D:/77/UCSC/study/204/HW/rounding.txt", header = TRUE)
+str(rounding)
+```
+
+Here, we can see that the data has three variables and 66 observations. There are different methods and different blocks. Time is the response variable and it is continuous. So, for the random block design, we need to add block into the ANOVA.
+
+```{r}
+rounding$block <- as.factor(rounding$block)
+M1 <- aov(times ~ method + block, data = rounding)
+summary(M1)
+```
+Here, both the method and block are significant, which means that there is significant difference in means among different method groups, also the block is also significant therefore, different blocks will have significant differences in mean of times.
+
+```{r}
+CI_1 <- TukeyHSD(M1, which = 1)
+plot(CI_1)
+```
+Also, by Tukey HSD (I did not transform the name of the variable so it looks so long) we can see that wideanlge and roundout has significant difference, narrowangle and roundout also have significant difference, but wide angle and narrow angle does not have significant difference.
+
+The residual plots are as follows:
+
+```{r}
+par(mfrow = c(1,2))
+plot(M1, which = 1:2)
+```
+
+Here, from the residual plot, there seems to be a decreasing trend of variance of residuals as the fitted values goes up. Therefore, we need to consider whether it has violated the assumption of constant variance. Also, in the qq plot, the tail on both sides deviated from the reference line, which make we suspicious about the normality assumption.
+
+
+
+Question 2: (9.2)
+```{r}
+str(morley)
+morley$Expt = factor(morley$Expt)
+morley$Run = factor(morley$Run)
+```
+According to the output of str function in R, we have three variables and "Expt" indicates which group of experiment is this observation in and "Run" is the order of the output in each experiment.
+
+```{r}
+boxplot(Speed ~ Expt, data = morley, col = c("lightpink", "lightblue", "lightgreen", "lightyellow", "lightgrey"
+                                            ) , xlab = "Experiment", ylab = "Speed", main = "Boxplot of Speed with Experiment")
+```
+
+If we regard this data set as a randomized block design, we can write a model as follows:
+$$Y_{ij} = \mu + \beta_{i} +\tau_{j}+\epsilon_{ij}$$
+Here, $\beta_{i}$ means which group of experiment does this observation is from, and $\tau_{j}$ means which run of this observation is from. Runs here is the block variable and experiment is the treatment variable.
+
+Our null hypothesis for $\beta$ is:
+$$ \beta_i=0 \ \ \ for\ \ all \ \ i $$
+The alternative is not all of $\beta_i$ are 0.
+Our null hypothesis for $\tau$ is:
+$$ \tau_j=0 \ \ \ for\ \ all \ \ j $$
+The alternative is not all of $\tau_j$ are 0.
+```{r}
+M2 <- aov(Speed ~ Expt + Run, data = morley)
+summary(M2)
+
+```
+So since the "Expt" is significant, there are significant difference among mean speeds of different groups of experiments. However, there are no significant difference among mean speeds of different groups of run. This can be interpreted by the independence of each run in each experiment.
+
+```{r}
+CI_2 <- TukeyHSD(M2, which = 1)
+plot(CI_2, las = 1)
+```
+Here we can see that only 4-1 and 5-1 have significant difference, which means that the mean of the experiment 4 and experiment 1 and experiment 5 and experiment 1 are significantly different.
+
+
+
+```{r}
+par(mfrow = c(1,2))
+plot(M2, which =1:2)
+```
+
+There is a little quadratic form in the variances of residuals but not that obvious. In the qq plot, the tail on the left has some values that are a little far from the reference line. But overall, the data seems to perform okay.
+
+
+Additional:
+
+Question 1:
+
+```{r}
+library(ISwR)
+tb <- tb.dilute
+tb$animal <- factor(tb$animal)
+tb$logdose <- factor(tb$logdose)
+```
+The data has 18 observations with treatment logdose and have different animal categories. I am performing a 2-way anova. And first I need to transfer variables into factors. Then I will carry out a two-way ANOVA.
+
+```{r}
+M3 <- aov(reaction ~ animal + logdose, data = tb)
+anova(M3)
+```
+For here, we have only one observation in each group, so we cannot add interaction terms. Consider two of the Tukey HSD, we have:
+
+```{r}
+CI_3 <- TukeyHSD(M3, which = 1)
+CI_4 <- TukeyHSD(M3, which = 2)
+par(mfrow = c(1,2))
+plot(CI_3, las = 1)
+plot(CI_4, las = 1)
+
+```
+Here we can distinguish the animal groups that have significant difference in mean of reaction is group 5 compared with group 1, group 6 compared with group 1, group 6 compared with group 2. Also, the difference of mean is all significant for any two logdose groups.
+
+Now, I will do the residual analysis.
+
+```{r}
+par(mfrow = c(1,2))
+plot(M3, which = 1:2)
+```
+
+The residuals performed very bad, it does not have constant variance since it performed like a quadratic trend, also it is not normally distributed since almost no points lie on the reference line.
+
+2. Analysis of Covariance.
+
+
+```{r}
+library(ISwR)
+vitcap <- vitcap2
+vitcap$group <- factor(vitcap$group)
+M4 <- lm(vitcap$vital.capacity ~ vitcap$group * vitcap$age, data = vitcap)
+anova(M4)
+```
+By the definition of analysis of covariance, the interaction term is significant, so the slope of different groups are different.
+
+The model is:
+
+$$Y_{ij} =(\mu+\delta_i)+(\beta+\gamma_i)X_{age}+\epsilon_{ij}$$
+For the linear model:
+```{r}
+summary(M4)
+```
+We have $\delta_1=\gamma_1=0$ for group 1 in our linear regression model. For the ANCOVA model, we are testing that:
+$$H_0: \gamma_1=\gamma_2=\gamma_3=0$$, the alternative is at least one of them is not zero.
+And the result is that we can reject the null hypothesis since the p-value is small enough. There are interaction effects, different groups have not all the same slope.
+
+
+3. Weight Loss Experiment
+
+```{r}
+L1 <- c(81, 88, 85, 84, 84)
+L2 <- c(85, 80, 82, 80, 82)
+L3 <- c(71, 77, 72, 80, 80)
+L4 <- c(84, 84, 82, 81, 86)
+L5 <- c(83, 88, 85, 86, 88)
+L6 <- c(78, 75, 78, 79, 82)
+
+method <- c(rep("Frying", 15), rep("Grilling", 15)) 
+fat <- rep(c(rep(10,5),rep(15,5),rep(20,5)),2)
+after <- c(L1, L2, L3, L4, L5, L6)
+dif <- as.numeric(110 - after)
+hamburger <- as.data.frame(cbind(dif, method, fat)) 
+hamburger$dif <- as.numeric(hamburger$dif)
+```
+
+(a) Exploratory Data Analysis
+```{r}
+summary(hamburger)
+```
+Here I regard fat percentage a categorical data since it only have three levels and seems not to be continuous. We can see the mean and median of the difference are both around 28. maximum is 39 and minimum is 22.
+
+
+
+
+```{r}
+par(mfrow = c(1,2))
+boxplot(dif ~ factor(method), col = c("lightblue", "lightpink"), xlab = "Cooking Method", ylab = "Reduced Weight")
+boxplot(dif ~ factor(fat), col = c("lightblue", "lightpink","lightgreen"), xlab = "Fat Percentage", ylab = "Reduced Weight")
+```
+From the box plot we can see that the median of grilling is smaller than frying method, but for most part, they are almost the same. However, for fat percentage, it seems that 10 percent and 15 percent group does not have significant difference, but for 20 percent group, the reduced weight is significantly higher than the other two groups.
+Now let's consider the interaction:
+
+```{r}
+with(data = hamburger, expr = {
+  interaction.plot(method, fat, response =dif, lwd = 2)
+})
+
+```
+It seems that there could be some interaction but we still need to use models to test.
+
+```{r}
+M5 <- aov(dif ~ factor(method) * factor(fat))
+anova(M5)
+```
+Here it seems that the mean of groups with different methods of cooking does not have significant difference. However, the mean of groups with different fat percentages has significant difference. Also the interaction seems not so significant. Then I prefer a model of no interaction terms.
+
+
+```{r}
+M5 <- aov(dif ~ factor(method) + factor(fat))
+anova(M5)
+```
+
+
+
+```{r}
+CI_ham <- TukeyHSD(M5, which = 2, conf.level = 0.95)
+plot(CI_ham, las = 2)
+```
+Here, there are significant difference in mean reduced weight between 10 and 20 percentage group, and 20 and 15 percentage group. But not significant difference in group 15 percentage and 10 percentage. And the mean of 20 percentage group is significantly higher than the others since the 95% CI does not include 0.
+
+
+The 90% confidence interval for the difference in mean between difference methods of cooking is:
+
+```{r}
+TukeyHSD(M5, which = 1,conf.level = 0.9)
+```
+
+So the difference of mean reduced weight between group grilling and group frying are significant if we set significance level to be 0.9.
+And the 90% CI is [-3.633577 -0.09975664].
+
+
+
+4. Malaria Data Set
+
+
+```{r}
+library(ISwR)
+mala <- malaria
+mala $ab <- log(mala$ab)
+M_logistic <- glm(mal ~ age + ab, data = mala, family = binomial(link = "logit"))
+summary(M_logistic)
+```
+From the result above, we can see the age is not significant, but the log of antibody level is significant. And more antibody level means less probability to get malaria. Controlling all the other variables the same, the odds of people with one unit greater log of antibody level will be $e^{-0.68235}$ times compared with the odds of the people whose log of antibody level remain the same.
+
+The deviance is 98.017 and not so far from the $N-p=97$, which means that the model performed well.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
